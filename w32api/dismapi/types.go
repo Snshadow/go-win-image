@@ -131,8 +131,8 @@ const (
 	DismStateNotPresent DismPackageFeatureState = iota
 	DismStateUninstallPending
 	DismStateStaged
-	DismStateResolved, DismStateRemoved = iota, iota
-	DismStateInstalled                  = iota
+	DismStateResolved, DismStateRemoved DismPackageFeatureState = iota, iota
+	DismStateInstalled                  DismPackageFeatureState = iota
 	DismStateInstallPending
 	DismStateSuperseded
 	DismStatePartiallyInstalled

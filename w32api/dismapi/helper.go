@@ -5,11 +5,13 @@ package dismapi
 
 import (
 	"bytes"
+	"reflect"
 	"unsafe"
 )
 
 type OneBytePacked[T any] interface {
 	ToStruct() T
+	ToBuffer(st T) []byte
 }
 
 // types for handling convert raw byte buffer into struct

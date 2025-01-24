@@ -26,8 +26,12 @@ func getPackedOffset(st reflect.Type, recursive bool, outerOffsets ...[]uintptr)
 			offsets = getPackedOffset(f.Type, recursive, offsets)
 		}
 
-		
+		baseOffset += f.Type.Size()
+
+		offsets = append(offsets, baseOffset)
 	}
+
+	return offsets
 }
 
 // GetPackedOffset calculates and returns the offsets of fields within
