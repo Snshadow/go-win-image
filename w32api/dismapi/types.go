@@ -14,7 +14,7 @@ type DismSession uint32
 // void DismProgressCallback(_In_ UINT Current,	_In_ UINT Total, _In_ PVOID UserData)
 //
 // return uintptr for windows.NewCallback requirement
-type DismProgressCallback func(Current uint32, Total uint32, UserData unsafe.Pointer) uintptr
+type DismProgressCallback func(current uint32, total uint32, userData unsafe.Pointer) uintptr
 
 // Dism error values
 const (
@@ -180,6 +180,14 @@ const (
 	DismFullyOfflineInstallable DismFullyOfflineInstallableType = iota
 	DismFullyOfflineNotInstallable
 	DismFullyOfflineInstallableUndetermined
+)
+
+type DismStubPackageOption uint32
+
+const (
+	DismStubPackageOptionNone DismStubPackageOption = 0 + iota
+	DismStubPackageOptionInstallFull
+	DismStubPackageOptionInstallStub
 )
 
 // Dism structs (packed by 1 byte)
