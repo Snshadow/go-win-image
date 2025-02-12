@@ -53,7 +53,7 @@ var (
 //sys	dismAddProvisionedAppxPackage(session DismSession, appPath *uint16, dependencyPackages **uint16, dependencyPackageCount uint32, optionalPackages **uint16, optionalPackagesCount uint32, licensePaths **uint16, licensePathsCount uint32, skipLicense bool, customDataPath *uint16, region *uint16, stubPackageOption DismStubPackageOption) (ret error) = dismapi.DismAddProvisionedAppxPackage
 //sys	dismRemoveProvisionedAppxPackage(session DismSession, packageName *uint16) (ret error) = dismapi.DismRemoveProvisionedAppxPackage
 //sys	dismAddLanguage(session DismSession, languageName *uint16, preventPending bool, limitAccess bool, sourcePaths **uint16, sourcePathCount uint32, cancelEvent windows.Handle, progress uintptr, userData unsafe.Pointer) (ret error) = dismapi.DismAddLanguage
-//sys	dismRemoveLanguage(session DismSession, languageName *uint16, cancelEvent windows.Handle, progress uintptr, userData unsafe.Pointer) (ret error) = dismap.DismRemoveLanguage
+//sys	dismRemoveLanguage(session DismSession, languageName *uint16, cancelEvent windows.Handle, progress uintptr, userData unsafe.Pointer) (ret error) = dismapi.DismRemoveLanguage
 
 func DismInitialize(
 	logLevel DismLogLevel,

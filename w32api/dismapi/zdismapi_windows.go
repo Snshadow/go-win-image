@@ -38,10 +38,8 @@ func errnoErr(e syscall.Errno) error {
 }
 
 var (
-	moddismap  = windows.NewLazySystemDLL("dismap.dll")
 	moddismapi = windows.NewLazySystemDLL("dismapi.dll")
 
-	procDismRemoveLanguage               = moddismap.NewProc("DismRemoveLanguage")
 	procDismAddCapability                = moddismapi.NewProc("DismAddCapability")
 	procDismAddDriver                    = moddismapi.NewProc("DismAddDriver")
 	procDismAddLanguage                  = moddismapi.NewProc("DismAddLanguage")
@@ -76,6 +74,7 @@ var (
 	procDismRemountImage                 = moddismapi.NewProc("DismRemountImage")
 	procDismRemoveCapability             = moddismapi.NewProc("DismRemoveCapability")
 	procDismRemoveDriver                 = moddismapi.NewProc("DismRemoveDriver")
+	procDismRemoveLanguage               = moddismapi.NewProc("DismRemoveLanguage")
 	procDismRemovePackage                = moddismapi.NewProc("DismRemovePackage")
 	procDismRemoveProvisionedAppxPackage = moddismapi.NewProc("DismRemoveProvisionedAppxPackage")
 	procDismRestoreImageHealth           = moddismapi.NewProc("DismRestoreImageHealth")
@@ -83,14 +82,6 @@ var (
 	procDismShutdown                     = moddismapi.NewProc("DismShutdown")
 	procDismUnmountImage                 = moddismapi.NewProc("DismUnmountImage")
 )
-
-func dismRemoveLanguage(session DismSession, languageName *uint16, cancelEvent windows.Handle, progress uintptr, userData unsafe.Pointer) (ret error) {
-	r0, _, _ := syscall.Syscall6(procDismRemoveLanguage.Addr(), 5, uintptr(session), uintptr(unsafe.Pointer(languageName)), uintptr(cancelEvent), uintptr(progress), uintptr(userData), 0)
-	if r0 != 0 {
-		ret = syscall.Errno(r0)
-	}
-	return
-}
 
 func dismAddCapability(session DismSession, name *uint16, limitAccess bool, sourcePaths **uint16, sourcePathCount uint32, cancelEvent windows.Handle, progress uintptr, UserData unsafe.Pointer) (ret error) {
 	var _p0 uint32
@@ -410,6 +401,14 @@ func dismRemoveCapability(session DismSession, name *uint16, cancelEvent windows
 
 func dismRemoveDriver(session DismSession, driverPath *uint16) (ret error) {
 	r0, _, _ := syscall.Syscall(procDismRemoveDriver.Addr(), 2, uintptr(session), uintptr(unsafe.Pointer(driverPath)), 0)
+	if r0 != 0 {
+		ret = syscall.Errno(r0)
+	}
+	return
+}
+
+func dismRemoveLanguage(session DismSession, languageName *uint16, cancelEvent windows.Handle, progress uintptr, userData unsafe.Pointer) (ret error) {
+	r0, _, _ := syscall.Syscall6(procDismRemoveLanguage.Addr(), 5, uintptr(session), uintptr(unsafe.Pointer(languageName)), uintptr(cancelEvent), uintptr(progress), uintptr(userData), 0)
 	if r0 != 0 {
 		ret = syscall.Errno(r0)
 	}
