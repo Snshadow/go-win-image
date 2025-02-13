@@ -1,6 +1,7 @@
 package wintype
 
 import (
+	"strconv"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -55,3 +56,36 @@ type LPPROGRESS_ROUTINE func(
 	destinationFile windows.Handle,
 	data unsafe.Pointer,
 ) /* uint32 */ uintptr
+
+// used for representing image architecture
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/ns-sysinfoapi-system_info#members
+type Architecture uint32
+
+const (
+	Intel   Architecture = 0 // x86
+	ARM     Architecture = 5
+	IA64    Architecture = 6
+	AMD64   Architecture = 9 // x64
+	ARM64   Architecture = 12
+	Unknown Architecture = 0xffff
+)
+
+func (a Architecture) String() string {
+	switch a {
+	case Intel:
+		return "x86"
+	case ARM:
+		return "ARM"
+	case IA64:
+		return "IA-64"
+	case AMD64:
+		return "x86_64"
+	case ARM64:
+		return "ARM64"
+	case Unknown:
+		return "unknown"
+	}
+
+	return "Architecture(" + strconv.FormatUint(uint64(a), 10) + ")"
+}

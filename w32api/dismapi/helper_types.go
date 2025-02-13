@@ -5,6 +5,8 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/Snshadow/go_win_image/w32api/wintype"
 )
 
 // helper structs with go friendly types
@@ -213,7 +215,7 @@ type GoDismImageInfo struct {
 	ImageName        string
 	ImageDescription string
 	ImageSize        uint64
-	Architecture     uint32
+	Architecture     wintype.Architecture
 	ProductName      string
 	EdtitionId       string
 	InstallationType string
@@ -238,7 +240,7 @@ func (g *GoDismImageInfo) fill(st *DismImageInfo) {
 	g.ImageName = windows.UTF16PtrToString(st.ImageName)
 	g.ImageDescription = windows.UTF16PtrToString(st.ImageDescription)
 	g.ImageSize = st.ImageSize
-	g.Architecture = st.Architecture
+	g.Architecture = wintype.Architecture(st.Architecture)
 	g.ProductName = windows.UTF16PtrToString(st.ProductName)
 	g.EdtitionId = windows.UTF16PtrToString(st.EditionId)
 	g.InstallationType = windows.UTF16PtrToString(st.InstallationType)
@@ -371,4 +373,71 @@ func (g *GoDismAppxPackage) fill(st *DismAppxPackage) {
 	g.ResourceId = windows.UTF16PtrToString(st.ResourceId)
 	g.InstallLocation = windows.UTF16PtrToString(st.InstallLocation)
 	g.Region = windows.UTF16PtrToString(st.Region)
+}
+
+var dismErrMsg = [...]string{
+	"The DISM session needs to be reloaded.",
+	"DISM API was not initialized for this process",
+	"A DismSession was being shutdown when another operation was called on it",
+	"A DismShutdown was called while there were open DismSession handles",
+	"An invalid DismSession handle was passed into a DISMAPI function",
+	"An invalid image index was specified",
+	"An invalid image name was specified",
+	"An image that is not a mounted WIM or mounted VHD was attempted to be unmounted",
+	"Failed to gain access to the log file user specified. Logging has been disabled..",
+	"A DismSession with open handles was attempted to be unmounted",
+	"A DismSession with open handles was attempted to be mounted",
+	"A DismSession with open handles was attempted to be remounted",
+	"One or several parent features are disabled so current feature can not be enabled.",
+	"The offline image specified is the running system. DISM_ONLINE_IMAGE must be used instead.",
+	"The specified product key could not be validated. Check that the specified product key is valid and that it matches the target edition.",
+	"An image file must be specified with either an index or a name.",
+	"The image needs to be remounted before any servicing operation.",
+	"The feature is not present in the package.",
+	"The current package and feature servicing infrastructure is busy.  Wait a bit and try the operation again.",
+}
+
+func getIndex(e DismErr) uint32 {
+	switch {
+	case e == DISMAPI_S_RELOAD_IMAGE_SESSION_REQUIRED:
+		return 0
+	case e > 0xc0040000 && e < 0xc0040008:
+		return uint32(e - 0xc0040000)
+	case e > 0xc0040008 && e < 0xc0040010:
+		return uint32(e - 0xc0040001)
+	case e == DISMAPI_E_MUST_SPECIFY_INDEX_OR_NAME:
+		return 15
+	case e == DISMAPI_E_NEEDS_REMOUNT:
+		return 16
+	case e == DISMAPI_E_UNKNOWN_FEATURE:
+		return 17
+	case e == DISMAPI_E_BUSY:
+		return 18
+	}
+
+	return 0xffffffff
+}
+
+// implement error to show error message
+func (e DismErr) Error() string {
+	i := getIndex(e)
+
+	if int32(i) == -1 {
+		return "unknown error"
+	}
+
+	return dismErrMsg[i]
+}
+
+func dismErr(e error) error {
+	errno, ok := e.(windows.Errno)
+	if !ok {
+		return e
+	}
+
+	if int32(getIndex(DismErr(errno))) != -1 {
+		return DismErr(errno)
+	}
+
+	return e
 }

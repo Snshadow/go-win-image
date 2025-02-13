@@ -9,7 +9,7 @@ import (
 	"github.com/Snshadow/go_win_image/internal/utils"
 )
 
-// structs with go friendly types
+// helper structs with go friendly types
 
 type GoWimInfo struct {
 	WimPath         string

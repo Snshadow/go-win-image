@@ -1,14 +1,15 @@
+// Package wimgapi implements Windows Imaging Interface library.
+// 
+// https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/wim/dd851927(v=msdn.10)
 package wimgapi
 
 import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
-
-	"github.com/Snshadow/go_win_image/w32api/wintype"
 )
 
-//sys	wimCreateFile(wimPath *uint16, desiredAccess uint32, creationDisposition uint32, flagsAndAttributes uint32, compressionType uint32, creationResult *uint32) (handle windows.Handle, err error) [failretval==windows.InvalidHandle] = wimgapi.WIMCreateFile
+//sys	wimCreateFile(wimPath *uint16, desiredAccess uint32, creationDisposition uint32, flagsAndAttributes uint32, compressionType uint32, creationResult *uint32) (handle windows.Handle, err error) = wimgapi.WIMCreateFile
 //sys	WIMCloseHandle(object windows.Handle) (err error) = wimgapi.WIMCloseHandle
 //sys	wimSetTemporaryPath(wim windows.Handle, path *uint16) (err error) = wimgapi.WIMSetTemporaryPath
 //sys	wimSetReferenceFile(wim windows.Handle, path *uint16, flags uint32) (err error) = wimgapi.WIMSetReferenceFile
@@ -42,6 +43,7 @@ import (
 //sys	wimGetMountedImageHandle(mountPath *uint16, flags uint32, wimHandle *windows.Handle, imageHandle *windows.Handle) (err error) = wimgapi.WIMGetMountedImageHandle
 //sys	WIMDeleteImageMounts(deleteFlags uint32) (err error) = wimgapi.WIMDeleteImageMounts
 //sys	wimRegisterLogFile(logFile *uint16, flags uint32) (err error) = wimgapi.WIMRegisterLogFile
+//sys	wimUnregisterLogFile(logFile *uint16) (err error) = wimgapi.WIMUnregisterLogFile
 //sys	wimExtractImagePath(image windows.Handle, imagePath *uint16, destinationPath *uint16, extractFlags uint32) (err error) = wimgapi.WIMExtractImagePath
 //sys	wimFindFirstImageFile(image windows.Handle, filePath *uint16, findFileData *WIM_FIND_DATA) (handle windows.Handle, err error) = wimgapi.WIMFindFirstImageFile
 //sys	wimFindNextImageFile(findFile windows.Handle, findFileData *WIM_FIND_DATA) (err error) = wimgapi.WIMFindNextImageFile
@@ -50,7 +52,7 @@ import (
 //sys	wimReadImageFile(imgFile windows.Handle, buffer *byte, bytesToRead uint32, bytesRead *uint32, overlapped *windows.Overlapped) (err error) = wimgapi.WIMReadImageFile
 
 // The createdNew value is set if getCreationResult is true, otherwise it
-// is always false.
+// is always false. Close handle with [windows.CloseHandle] after use.
 func WIMCreateFile(
 	wimPath string,
 	desiredAccess uint32,
@@ -224,7 +226,8 @@ func WIMGetImageInformation(image windows.Handle) ([]byte, error) {
 
 	defer windows.LocalFree(windows.Handle(uintptr(imgInfo)))
 
-	buf := unsafe.Slice((*byte)(imgInfo), bufSize)
+	buf := make([]byte, bufSize)
+	copy(buf, unsafe.Slice((*byte)(imgInfo), bufSize))
 
 	return buf, nil
 }
@@ -329,7 +332,13 @@ func WIMUnmountImage(
 	commitChanges bool,
 ) error {
 	u16MntPath, err := windows.UTF16PtrFromString(mountPath)
+	if err != nil {
+		return err
+	}
 	u16WimFile, err := windows.UTF16PtrFromString(wimFileName)
+	if err != nil {
+		return err
+	}
 
 	if err = wimUnmountImage(
 		u16MntPath,
@@ -453,7 +462,7 @@ func WIMCommitImageHandle(
 
 func WIMGetMountedImageInfo[T GoWimMountInfoLevel0 | GoWimMountInfoLevel1]() ([]T, error) {
 	var infoLevel MOUNTED_IMAGE_INFO_LEVELS
-	var imageCount, returnLength uint32
+	var infoCount, returnLength uint32
 
 	switch any((*T)(nil)).(type) {
 	case *GoWimMountInfoLevel0:
@@ -465,7 +474,7 @@ func WIMGetMountedImageInfo[T GoWimMountInfoLevel0 | GoWimMountInfoLevel1]() ([]
 	// get required buffer size
 	err := wimGetMountedImageInfo(
 		infoLevel,
-		&imageCount,
+		&infoCount,
 		nil,
 		0,
 		&returnLength,
@@ -474,7 +483,7 @@ func WIMGetMountedImageInfo[T GoWimMountInfoLevel0 | GoWimMountInfoLevel1]() ([]
 		return nil, err
 	}
 
-	if imageCount == 0 {
+	if infoCount == 0 {
 		return nil, nil
 	}
 
@@ -482,7 +491,7 @@ func WIMGetMountedImageInfo[T GoWimMountInfoLevel0 | GoWimMountInfoLevel1]() ([]
 
 	err = wimGetMountedImageInfo(
 		infoLevel,
-		&imageCount,
+		&infoCount,
 		unsafe.Pointer(&buf[0]),
 		uint32(len(buf)),
 		&returnLength,
@@ -491,20 +500,239 @@ func WIMGetMountedImageInfo[T GoWimMountInfoLevel0 | GoWimMountInfoLevel1]() ([]
 		return nil, err
 	}
 
-	result := make([]T, imageCount)
+	result := make([]T, infoCount)
 
 	switch infoLevel {
 	case MountedImageLevel0:
-		for i, info := range unsafe.Slice((*WIM_MOUNT_INFO_LEVEL0)(unsafe.Pointer(&buf[0])), imageCount) {
-			goInfo := any(result[i]).(GoWimMountInfoLevel0)
-			goInfo.fill(&info)
+		for i, info := range unsafe.Slice((*WIM_MOUNT_INFO_LEVEL0)(unsafe.Pointer(&buf[0])), infoCount) {
+			any(&result[i]).(*GoWimMountInfoLevel0).fill(&info)
 		}
 	case MountedImageLevel1:
-		for i, info := range unsafe.Slice((*WIM_MOUNT_INFO_LEVEL1)(unsafe.Pointer(&buf[0])), imageCount) {
-			goInfo := any(result[i]).(GoWimMountInfoLevel1)
-			goInfo.fill(&info)
+		for i, info := range unsafe.Slice((*WIM_MOUNT_INFO_LEVEL1)(unsafe.Pointer(&buf[0])), infoCount) {
+			any(&result[i]).(*GoWimMountInfoLevel1).fill(&info)
 		}
 	}
 
 	return result, nil
+}
+
+func WiMGetMountedImageInfoFromHandle[T GoWimMountInfoLevel0 | GoWimMountInfoLevel1](
+	image windows.Handle,
+) ([]T, error) {
+	var infoLevel MOUNTED_IMAGE_INFO_LEVELS
+	var returnLength, structSize uint32
+
+	switch any((*T)(nil)).(type) {
+	case *GoWimMountInfoLevel0:
+		infoLevel = MountedImageLevel0
+		structSize = uint32(unsafe.Sizeof(WIM_MOUNT_INFO_LEVEL0{}))
+	case *GoWimMountInfoLevel1:
+		infoLevel = MountedImageLevel1
+		structSize = uint32(unsafe.Sizeof(WIM_MOUNT_INFO_LEVEL1{}))
+	}
+
+	// get required buffer size
+	err := wimGetMountedImageInfoFromHandle(
+		image,
+		infoLevel,
+		nil,
+		0,
+		&returnLength,
+	)
+	if err != nil && err != windows.ERROR_INSUFFICIENT_BUFFER {
+		return nil, err
+	}
+
+	buf := make([]byte, returnLength)
+
+	if err = wimGetMountedImageInfoFromHandle(
+		image,
+		infoLevel,
+		unsafe.Pointer(&buf[0]),
+		uint32(len(buf)),
+		&returnLength,
+	); err != nil {
+		return nil, err
+	}
+
+	infoCount := returnLength / structSize
+	result := make([]T, infoCount)
+
+	switch infoLevel {
+	case MountedImageLevel0:
+		for i, info := range unsafe.Slice((*WIM_MOUNT_INFO_LEVEL0)(unsafe.Pointer(&buf[0])), infoCount) {
+			any(&result[i]).(*GoWimMountInfoLevel0).fill(&info)
+		}
+	case MountedImageLevel1:
+		for i, info := range unsafe.Slice((*WIM_MOUNT_INFO_LEVEL1)(unsafe.Pointer(&buf[0])), infoCount) {
+			any(&result[i]).(*GoWimMountInfoLevel1).fill(&info)
+		}
+	}
+
+	return result, nil
+}
+
+func WIMGetMountedImageHandle(
+	mountPath string,
+	flags uint32,
+) (
+	wimhandle windows.Handle,
+	imageHandle windows.Handle,
+	err error,
+) {
+	u16MntPath, err := windows.UTF16PtrFromString(mountPath)
+	if err != nil {
+		return
+	}
+
+	err = wimGetMountedImageHandle(
+		u16MntPath,
+		flags,
+		&wimhandle,
+		&imageHandle,
+	)
+
+	return
+}
+
+func WIMRegisterLogFile(
+	logFile string,
+	flags uint32,
+) error {
+	u16LogFile, err := windows.UTF16PtrFromString(logFile)
+	if err != nil {
+		return err
+	}
+
+	if err = wimRegisterLogFile(
+		u16LogFile,
+		flags,
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func WIMUnresigisterLogFile(logFile string) error {
+	u16LogFile, err := windows.UTF16PtrFromString(logFile)
+	if err != nil {
+		return err
+	}
+
+	if err = wimUnregisterLogFile(u16LogFile); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func WIMExtractImagePath(
+	image windows.Handle,
+	imagePath string,
+	destinationPath string,
+	extractFlags uint32,
+) error {
+	u16ImgPath, err := windows.UTF16PtrFromString(imagePath)
+	if err != nil {
+		return err
+	}
+
+	u16DestPath, err := windows.UTF16PtrFromString(destinationPath)
+	if err != nil {
+		return err
+	}
+
+	if err = wimExtractImagePath(
+		image,
+		u16ImgPath,
+		u16DestPath,
+		extractFlags,
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func WIMFindFirstImageFile(
+	image windows.Handle,
+	filePath string,
+) (
+	windows.Handle,
+	*GoWimFindData,
+	error,
+) {
+	u16FilePath, err := windows.UTF16PtrFromString(filePath)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	var findFileData WIM_FIND_DATA
+
+	findHandle, err := wimFindFirstImageFile(
+		image,
+		u16FilePath,
+		&findFileData,
+	)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	result := &GoWimFindData{}
+	result.fill(&findFileData)
+
+	return findHandle, result, nil
+}
+
+func WIMFindNextImageFile(findFile windows.Handle) (*GoWimFindData, error) {
+	var findFileData WIM_FIND_DATA
+
+	if err := wimFindNextImageFile(findFile, &findFileData); err != nil {
+		return nil, err
+	}
+
+	result := &GoWimFindData{}
+	result.fill(&findFileData)
+
+	return result, nil
+}
+
+func WIMCreateImageFile(
+	image windows.Handle,
+	filePath string,
+	desiredAccess uint32,
+	creationDisposition uint32,
+	flagsAndAttributes uint32,
+) (windows.Handle, error) {
+	u16FilePath, err := windows.UTF16PtrFromString(filePath)
+	if err != nil {
+		return 0, err
+	}
+
+	return wimCreateImageFile(
+		image,
+		u16FilePath,
+		desiredAccess,
+		creationDisposition,
+		flagsAndAttributes,
+	)
+}
+
+func WIMReadImageFile(
+	imgFile windows.Handle,
+	buf []byte,
+	overlapped *windows.Overlapped,
+) (int, error) {
+	var bytesRead uint32
+
+	err := wimReadImageFile(
+		imgFile,
+		&buf[0],
+		uint32(len(buf)),
+		&bytesRead,
+		overlapped,
+	)
+
+	return int(bytesRead), err
 }

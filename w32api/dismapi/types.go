@@ -1,5 +1,4 @@
-//go:build windows
-// +build windows
+//go:generate go run github.com/Snshadow/mkpackstruct $GOFILE
 
 package dismapi
 
@@ -17,29 +16,33 @@ type DismSession uint32
 type DismProgressCallback func(current uint32, total uint32, userData unsafe.Pointer) uintptr
 
 // Dism error values
+type DismErr uint32
+
 const (
-	DISMAPI_S_RELOAD_IMAGE_SESSION_REQUIRED             = 0x00000001
-	DISMAPI_E_DISMAPI_NOT_INITIALIZED                   = 0xc0040001
-	DISMAPI_E_SHUTDOWN_IN_PROGRESS                      = 0xc0040002
-	DISMAPI_E_OPEN_SESSION_HANDLES                      = 0xc0040003
-	DISMAPI_E_INVALID_DISM_SESSION                      = 0xc0040004
-	DISMAPI_E_INVALID_IMAGE_INDEX                       = 0xc0040005
-	DISMAPI_E_INVALID_IMAGE_NAME                        = 0xc0040006
-	DISMAPI_E_UNABLE_TO_UNMOUNT_IMAGE_PATH              = 0xc0040007
-	DISMAPI_E_LOGGING_DISABLED                          = 0xc0040009
-	DISMAPI_E_OPEN_HANDLES_UNABLE_TO_UNMOUNT_IMAGE_PATH = 0xc004000a
-	DISMAPI_E_OPEN_HANDLES_UNABLE_TO_MOUNT_IMAGE_PATH   = 0xc004000b
-	DISMAPI_E_OPEN_HANDLES_UNABLE_TO_REMOUNT_IMAGE_PATH = 0xc004000c
-	DISMAPI_E_PARENT_FEATURE_DISABLED                   = 0xc004000d
-	DISMAPI_E_MUST_SPECIFY_ONLINE_IMAGE                 = 0xc004000e
-	DISMAPI_E_INVALID_PRODUCT_KEY                       = 0xc004000f
-	DISMAPI_E_NEEDS_REMOUNT                             = 0xc1510114
-	DISMAPI_E_UNKNOWN_FEATURE                           = 0x800f080c
-	DISMAPI_E_BUSY                                      = 0x800f0902
+	DISMAPI_S_RELOAD_IMAGE_SESSION_REQUIRED             DismErr = 0x00000001
+	DISMAPI_E_DISMAPI_NOT_INITIALIZED                   DismErr = 0xc0040001
+	DISMAPI_E_SHUTDOWN_IN_PROGRESS                      DismErr = 0xc0040002
+	DISMAPI_E_OPEN_SESSION_HANDLES                      DismErr = 0xc0040003
+	DISMAPI_E_INVALID_DISM_SESSION                      DismErr = 0xc0040004
+	DISMAPI_E_INVALID_IMAGE_INDEX                       DismErr = 0xc0040005
+	DISMAPI_E_INVALID_IMAGE_NAME                        DismErr = 0xc0040006
+	DISMAPI_E_UNABLE_TO_UNMOUNT_IMAGE_PATH              DismErr = 0xc0040007
+	DISMAPI_E_LOGGING_DISABLED                          DismErr = 0xc0040009
+	DISMAPI_E_OPEN_HANDLES_UNABLE_TO_UNMOUNT_IMAGE_PATH DismErr = 0xc004000a
+	DISMAPI_E_OPEN_HANDLES_UNABLE_TO_MOUNT_IMAGE_PATH   DismErr = 0xc004000b
+	DISMAPI_E_OPEN_HANDLES_UNABLE_TO_REMOUNT_IMAGE_PATH DismErr = 0xc004000c
+	DISMAPI_E_PARENT_FEATURE_DISABLED                   DismErr = 0xc004000d
+	DISMAPI_E_MUST_SPECIFY_ONLINE_IMAGE                 DismErr = 0xc004000e
+	DISMAPI_E_INVALID_PRODUCT_KEY                       DismErr = 0xc004000f
+	DISMAPI_E_MUST_SPECIFY_INDEX_OR_NAME                DismErr = 0xc0040020
+	DISMAPI_E_NEEDS_REMOUNT                             DismErr = 0xc1510114
+	DISMAPI_E_UNKNOWN_FEATURE                           DismErr = 0x800f080c
+	DISMAPI_E_BUSY                                      DismErr = 0x800f0902
 )
 
-var (
-	DISM_ONLINE_IMAGE = [...]uint16{'D', 'I', 'S', 'M', '_', '{', '5', '3', 'B', 'F', 'A', 'E', '5', '2', '-', 'B', '1', '6', '7', '-', '4', 'E', '2', 'F', '-', 'A', '2', '5', '8', '-', '0', 'A', '3', '7', 'B', '5', '7', 'F', 'F', '8', '4', '5', '}', '\x00'} // L"DISM_{53BFAE52-B167-4E2F-A258-0A37B57FF845}"
+// ImagePath for online Windows installation(the running system)
+const (
+	DISM_ONLINE_IMAGE = "DISM_{53BFAE52-B167-4E2F-A258-0A37B57FF845}"
 )
 
 // Dism constants
@@ -73,9 +76,9 @@ const (
 type DismImageIdentifier uint32
 
 const (
-	DismImageIndex DismImageIdentifier = iota
+	DismImageNone DismImageIdentifier = iota
 	DismImageName
-	DismImageNone
+	DismImageIndex
 )
 
 type DismMountMode uint32

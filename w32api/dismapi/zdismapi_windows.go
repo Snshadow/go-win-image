@@ -68,7 +68,7 @@ var (
 	procDismGetPackages                  = moddismapi.NewProc("DismGetPackages")
 	procDismGetProvisionedAppxPackages   = moddismapi.NewProc("DismGetProvisionedAppxPackages")
 	procDismGetReservedStorageState      = moddismapi.NewProc("DismGetReservedStorageState")
-	procDismIntialize                    = moddismapi.NewProc("DismIntialize")
+	procDismInitialize                   = moddismapi.NewProc("DismInitialize")
 	procDismMountImage                   = moddismapi.NewProc("DismMountImage")
 	procDismOpenSession                  = moddismapi.NewProc("DismOpenSession")
 	procDismRemountImage                 = moddismapi.NewProc("DismRemountImage")
@@ -360,7 +360,7 @@ func dismGetReservedStorageState(session DismSession, state *uint32) (ret error)
 }
 
 func dismInitialize(logLevel DismLogLevel, logFilePath *uint16, scratchDirectory *uint16) (ret error) {
-	r0, _, _ := syscall.Syscall(procDismIntialize.Addr(), 3, uintptr(logLevel), uintptr(unsafe.Pointer(logFilePath)), uintptr(unsafe.Pointer(scratchDirectory)))
+	r0, _, _ := syscall.Syscall(procDismInitialize.Addr(), 3, uintptr(logLevel), uintptr(unsafe.Pointer(logFilePath)), uintptr(unsafe.Pointer(scratchDirectory)))
 	if r0 != 0 {
 		ret = syscall.Errno(r0)
 	}

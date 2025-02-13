@@ -1,3 +1,6 @@
+// Package dismapi implements Deployment Image Servicing and Management (DISM) API.
+//
+// https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/dism/dism-api-reference
 package dismapi
 
 import (
@@ -13,7 +16,7 @@ var (
 	ErrDelete = errors.New("failed to release resource") // DismDelete failure
 )
 
-//sys	dismInitialize (logLevel DismLogLevel, logFilePath *uint16, scratchDirectory *uint16) (ret error) = dismapi.DismIntialize
+//sys	dismInitialize (logLevel DismLogLevel, logFilePath *uint16, scratchDirectory *uint16) (ret error) = dismapi.DismInitialize
 //sys	dismShutdown() (ret error) = dismapi.DismShutdown
 //sys	dismMountImage(imageFilePath *uint16, mountPath *uint16, imageIndex uint32, imageName *uint16, imageIdentifier DismImageIdentifier, flags uint32, cancelEvent windows.Handle, progress uintptr, userData unsafe.Pointer) (ret error) = dismapi.DismMountImage
 //sys	dismUnmountImage(mountPath *uint16, flags uint32, cancelEvent windows.Handle, progress uintptr, userData unsafe.Pointer) (ret error) = dismapi.DismUnmountImage
@@ -60,14 +63,19 @@ func DismInitialize(
 	logFilePath string,
 	scratchDirectory string,
 ) error {
-	u16LogFilePath, err := windows.UTF16PtrFromString(logFilePath)
-	if err != nil {
-		return err
+	var u16LogFilePath, u16ScratchDir *uint16
+	var err error
+
+	if logFilePath != "" {
+		if u16LogFilePath, err = windows.UTF16PtrFromString(logFilePath); err != nil {
+			return err
+		}
 	}
 
-	u16ScratchDir, err := windows.UTF16PtrFromString(scratchDirectory)
-	if err != nil {
-		return err
+	if scratchDirectory != "" {
+		if u16ScratchDir, err = windows.UTF16PtrFromString(scratchDirectory); err != nil {
+			return err
+		}
 	}
 
 	if err = dismInitialize(
@@ -75,7 +83,7 @@ func DismInitialize(
 		u16LogFilePath,
 		u16ScratchDir,
 	); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil
@@ -83,7 +91,7 @@ func DismInitialize(
 
 func DismShutdown() error {
 	if err := dismShutdown(); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil
@@ -100,19 +108,21 @@ func DismMountImage(
 	progress uintptr,
 	userData unsafe.Pointer,
 ) error {
-	u16ImgFilePath, err := windows.UTF16PtrFromString(imageFilePath)
-	if err != nil {
+	var u16ImgFilePath, u16MntPath, u16ImgName *uint16
+	var err error
+
+	if u16ImgFilePath, err = windows.UTF16PtrFromString(imageFilePath); err != nil {
 		return err
 	}
 
-	u16MntPath, err := windows.UTF16PtrFromString(mountPath)
-	if err != nil {
+	if u16MntPath, err = windows.UTF16PtrFromString(mountPath); err != nil {
 		return err
 	}
 
-	u16ImgName, err := windows.UTF16PtrFromString(imageName)
-	if err != nil {
-		return err
+	if imageName != "" {
+		if u16ImgName, err = windows.UTF16PtrFromString(imageName); err != nil {
+			return err
+		}
 	}
 
 	if err = dismMountImage(
@@ -126,7 +136,7 @@ func DismMountImage(
 		progress,
 		userData,
 	); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil
@@ -151,7 +161,7 @@ func DismUnmountImage(
 		progress,
 		userData,
 	); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil
@@ -162,19 +172,23 @@ func DismOpenSession(
 	windowsDirectory string,
 	systemDrive string,
 ) (DismSession, error) {
-	u16ImgPath, err := windows.UTF16PtrFromString(imagePath)
-	if err != nil {
+	var u16ImgPath, u16WinDir, u16SysDrv *uint16
+	var err error
+
+	if u16ImgPath, err = windows.UTF16PtrFromString(imagePath); err != nil {
 		return 0, err
 	}
 
-	u16WinDir, err := windows.UTF16PtrFromString(windowsDirectory)
-	if err != nil {
-		return 0, err
+	if windowsDirectory != "" {
+		if u16WinDir, err = windows.UTF16PtrFromString(windowsDirectory); err != nil {
+			return 0, err
+		}
 	}
 
-	u16SysDrv, err := windows.UTF16PtrFromString(systemDrive)
-	if err != nil {
-		return 0, err
+	if systemDrive != "" {
+		if u16SysDrv, err = windows.UTF16PtrFromString(systemDrive); err != nil {
+			return 0, err
+		}
 	}
 
 	var ses DismSession
@@ -185,7 +199,7 @@ func DismOpenSession(
 		u16SysDrv,
 		&ses,
 	); err != nil {
-		return 0, utils.HresultToError(err)
+		return 0, dismErr(utils.HresultToError(err))
 	}
 
 	return ses, nil
@@ -193,7 +207,7 @@ func DismOpenSession(
 
 func DismCloseSession(session DismSession) error {
 	if err := dismCloseSession(session); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil
@@ -203,13 +217,13 @@ func DismGetLastErrorMessage() (string, error) {
 	var errorMsg *DismString
 
 	if err := dismGetLastErrorMessage(&errorMsg); err != nil {
-		return "", utils.HresultToError(err)
+		return "", dismErr(utils.HresultToError(err))
 	}
 
 	lastErrMsg := windows.UTF16PtrToString(errorMsg.Value)
 
 	if err := DismDelete(unsafe.Pointer(errorMsg)); err != nil {
-		parsedErr := utils.HresultToError(err)
+		parsedErr := dismErr(utils.HresultToError(err))
 
 		return lastErrMsg, errors.Join(ErrDelete, parsedErr)
 	}
@@ -218,13 +232,14 @@ func DismGetLastErrorMessage() (string, error) {
 }
 
 func DismRemountImage(mountPath string) error {
+
 	u16MntPath, err := windows.UTF16PtrFromString(mountPath)
 	if err != nil {
 		return err
 	}
 
 	if err = dismRemountImage(u16MntPath); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil
@@ -244,7 +259,7 @@ func DismCommitImage(
 		progress,
 		userData,
 	); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil
@@ -270,7 +285,7 @@ func DismGetImageInfo(imageFilePath string) (imageInfo []GoDismImageInfo, err er
 		&infoPtr,
 		&count,
 	); err != nil {
-		err = utils.HresultToError(err)
+		err = dismErr(utils.HresultToError(err))
 		return
 	}
 
@@ -307,7 +322,7 @@ func DismGetMountedImageInfo() (mountedImageInfo []GoDismMountedImageInfo, err e
 		&infoPtr,
 		&count,
 	); err != nil {
-		err = utils.HresultToError(err)
+		err = dismErr(utils.HresultToError(err))
 		return
 	}
 
@@ -352,7 +367,7 @@ func DismCheckImageHealth(
 		userData,
 		&imageHealth,
 	); err != nil {
-		err = utils.HresultToError(err)
+		err = dismErr(utils.HresultToError(err))
 	}
 
 	return
@@ -386,7 +401,7 @@ func DismRestoreImageHealth(
 		progress,
 		userData,
 	); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil
@@ -394,7 +409,7 @@ func DismRestoreImageHealth(
 
 func DismDelete(dismStructure unsafe.Pointer) error {
 	if err := dismDelete(dismStructure); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil
@@ -423,7 +438,7 @@ func DismAddPackage(
 		progress,
 		userData,
 	); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil
@@ -437,9 +452,13 @@ func DismRemovePackage(
 	progress uintptr,
 	userData unsafe.Pointer,
 ) error {
-	u16Id, err := windows.UTF16PtrFromString(identifer)
-	if err != nil {
-		return err
+	var u16Id *uint16
+	var err error
+
+	if identifer != "" {
+		if u16Id, err = windows.UTF16PtrFromString(identifer); err != nil {
+			return err
+		}
 	}
 
 	if err = dismRemovePackage(
@@ -450,7 +469,7 @@ func DismRemovePackage(
 		progress,
 		userData,
 	); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil
@@ -468,14 +487,17 @@ func DismEnableFeature(
 	progress uintptr,
 	userData unsafe.Pointer,
 ) error {
-	u16Feat, err := windows.UTF16PtrFromString(featureName)
-	if err != nil {
+	var u16Feat, u16Id *uint16
+	var err error
+
+	if u16Feat, err = windows.UTF16PtrFromString(featureName); err != nil {
 		return err
 	}
 
-	u16Id, err := windows.UTF16PtrFromString(identifier)
-	if err != nil {
-		return err
+	if identifier != "" {
+		if u16Id, err = windows.UTF16PtrFromString(identifier); err != nil {
+			return err
+		}
 	}
 
 	u16SrcPaths, err := utils.StrSliceToUtf16PtrArr(sourcePaths)
@@ -501,7 +523,7 @@ func DismEnableFeature(
 		progress,
 		userData,
 	); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil
@@ -516,14 +538,17 @@ func DismDisableFeature(
 	progress uintptr,
 	userData unsafe.Pointer,
 ) error {
-	u16FeatName, err := windows.UTF16PtrFromString(featureName)
-	if err != nil {
+	var u16FeatName, u16PkgName *uint16
+	var err error
+
+	if u16FeatName, err = windows.UTF16PtrFromString(featureName); err != nil {
 		return err
 	}
 
-	u16PkgName, err := windows.UTF16PtrFromString(packageName)
-	if err != nil {
-		return err
+	if packageName != "" {
+		if u16PkgName, err = windows.UTF16PtrFromString(packageName); err != nil {
+			return err
+		}
 	}
 
 	if err = dismDisableFeature(
@@ -535,7 +560,7 @@ func DismDisableFeature(
 		progress,
 		userData,
 	); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil
@@ -556,7 +581,7 @@ func DismGetPackages(session DismSession) (packages []GoDismPackage, err error) 
 		&pkgPtr,
 		&count,
 	); err != nil {
-		err = utils.HresultToError(err)
+		err = dismErr(utils.HresultToError(err))
 		return
 	}
 
@@ -602,7 +627,7 @@ func DismGetPackageInfo(
 		packageIdentifier,
 		&pkgInfoPtr,
 	); err != nil {
-		err = utils.HresultToError(err)
+		err = dismErr(utils.HresultToError(err))
 		return
 	}
 
@@ -641,7 +666,7 @@ func DismGetPackageInfoEx(
 		packageIdentifier,
 		&pkgInfoPtrEx,
 	); err != nil {
-		err = utils.HresultToError(err)
+		err = dismErr(utils.HresultToError(err))
 		return
 	}
 
@@ -682,7 +707,7 @@ func DismGetFeatures(
 		&featPtr,
 		&count,
 	); err != nil {
-		err = utils.HresultToError(err)
+		err = dismErr(utils.HresultToError(err))
 
 		return
 	}
@@ -712,14 +737,15 @@ func DismGetFeatureInfo(
 	identifier string,
 	packageIdentifier DismPackageIdentifier,
 ) (featureInfo GoDismFeatureInfo, err error) {
-	u16featName, err := windows.UTF16PtrFromString(featureName)
-	if err != nil {
+	var u16featName, u16Id *uint16
+	if u16featName, err = windows.UTF16PtrFromString(featureName); err != nil {
 		return
 	}
 
-	u16Id, err := windows.UTF16PtrFromString(identifier)
-	if err != nil {
-		return
+	if identifier != "" {
+		if u16Id, err = windows.UTF16PtrFromString(identifier); err != nil {
+			return
+		}
 	}
 
 	var featInfoPtr *DismFeatureInfo
@@ -737,7 +763,7 @@ func DismGetFeatureInfo(
 		packageIdentifier,
 		&featInfoPtr,
 	); err != nil {
-		err = utils.HresultToError(err)
+		err = dismErr(utils.HresultToError(err))
 	}
 
 	if featInfoPtr != nil {
@@ -756,14 +782,15 @@ func DismGetFeatureParent(
 	identifier string,
 	packageIdentifier DismPackageIdentifier,
 ) (feature []GoDismFeature, err error) {
-	u16FeatName, err := windows.UTF16PtrFromString(featureName)
-	if err != nil {
+	var u16FeatName, u16Id *uint16
+	if u16FeatName, err = windows.UTF16PtrFromString(featureName); err != nil {
 		return
 	}
 
-	u16Id, err := windows.UTF16PtrFromString(identifier)
-	if err != nil {
-		return
+	if identifier != "" {
+		if u16Id, err = windows.UTF16PtrFromString(identifier); err != nil {
+			return
+		}
 	}
 
 	var featPtr *DismFeature
@@ -783,7 +810,7 @@ func DismGetFeatureParent(
 		&featPtr,
 		&count,
 	); err != nil {
-		err = utils.HresultToError(err)
+		err = dismErr(utils.HresultToError(err))
 		return
 	}
 
@@ -819,7 +846,7 @@ func DismApplyUnattend(
 		u16unattend,
 		singleSession,
 	); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil
@@ -840,7 +867,7 @@ func DismAddDriver(
 		u16DrvPath,
 		forceUnsigned,
 	); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil
@@ -859,7 +886,7 @@ func DismRemoveDriver(
 		session,
 		u16DrvPath,
 	); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil
@@ -884,7 +911,7 @@ func DismGetDrivers(
 		&drvPkgPtr,
 		&count,
 	); err != nil {
-		err = utils.HresultToError(err)
+		err = dismErr(utils.HresultToError(err))
 		return
 	}
 
@@ -948,7 +975,7 @@ func DismGetDriverInfo(
 		&count,
 		packageParam,
 	); err != nil {
-		err = utils.HresultToError(err)
+		err = dismErr(utils.HresultToError(err))
 		return
 	}
 
@@ -978,7 +1005,7 @@ func DismGetDriverInfo(
 	return
 }
 
-func DismGetCapabilties(session DismSession) (capability []GoDismCapability, err error) {
+func DismGetCapabilities(session DismSession) (capability []GoDismCapability, err error) {
 	var capPtr *DismCapability
 	var count uint32
 
@@ -993,7 +1020,7 @@ func DismGetCapabilties(session DismSession) (capability []GoDismCapability, err
 		&capPtr,
 		&count,
 	); err != nil {
-		err = utils.HresultToError(err)
+		err = dismErr(utils.HresultToError(err))
 
 		return
 	}
@@ -1039,7 +1066,7 @@ func DismGetCapabilityInfo(
 		u16Name,
 		&infoPtr,
 	); err != nil {
-		err = utils.HresultToError(err)
+		err = dismErr(utils.HresultToError(err))
 
 		return
 	}
@@ -1087,7 +1114,7 @@ func DismAddCapability(
 		progress,
 		userData,
 	); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil
@@ -1112,7 +1139,7 @@ func DismRemoveCapability(
 		progress,
 		userData,
 	); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil
@@ -1123,7 +1150,7 @@ func DismGetReservedStorageState(session DismSession) (state uint32, err error) 
 		session,
 		&state,
 	); err != nil {
-		err = utils.HresultToError(err)
+		err = dismErr(utils.HresultToError(err))
 	}
 
 	return
@@ -1137,7 +1164,7 @@ func DismSetReservedStorageState(
 		session,
 		state,
 	); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil
@@ -1158,7 +1185,7 @@ func DismGetProvisionedAppxPackages(session DismSession) (appxPackage []GoDismAp
 		&pkgPtr,
 		&count,
 	); err != nil {
-		err = utils.HresultToError(err)
+		err = dismErr(utils.HresultToError(err))
 
 		return
 	}
@@ -1193,23 +1220,28 @@ func DismAddProvisionedAppxPackage(
 	region string,
 	stubPackageOption DismStubPackageOption,
 ) error {
-	u16AppPath, err := windows.UTF16PtrFromString(appPath)
-	if err != nil {
+	var (
+		u16AppPath, u16CustomDataPath, u16Region *uint16
+		depPtr, optPtr, licensePtr               **uint16
+		depLen, optLen, licenseLen               uint32
+		err                                      error
+	)
+
+	if u16AppPath, err = windows.UTF16PtrFromString(appPath); err != nil {
 		return err
 	}
 
-	u16CustomDataPath, err := windows.UTF16PtrFromString(customDataPath)
-	if err != nil {
-		return err
+	if customDataPath != "" {
+		if u16CustomDataPath, err = windows.UTF16PtrFromString(customDataPath); err != nil {
+			return err
+		}
 	}
 
-	u16Region, err := windows.UTF16PtrFromString(region)
-	if err != nil {
-		return err
+	if region != "" {
+		if u16Region, err = windows.UTF16PtrFromString(region); err != nil {
+			return err
+		}
 	}
-
-	var depPtr, optPtr, licensePtr **uint16
-	var depLen, optLen, licenseLen uint32
 
 	if len(dependencyPackages) != 0 {
 		u16Dep, err := utils.StrSliceToUtf16PtrArr(dependencyPackages)
@@ -1255,7 +1287,7 @@ func DismAddProvisionedAppxPackage(
 		u16Region,
 		stubPackageOption,
 	); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil
@@ -1265,16 +1297,20 @@ func DismRemoveProvisionedAppxPackage(
 	session DismSession,
 	packageName string,
 ) error {
-	u16PkgName, err := windows.UTF16PtrFromString(packageName)
-	if err != nil {
-		return err
+	var u16PkgName *uint16
+	var err error
+
+	if packageName != "" {
+		if u16PkgName, err = windows.UTF16PtrFromString(packageName); err != nil {
+			return err
+		}
 	}
 
 	if err = dismRemoveProvisionedAppxPackage(
 		session,
 		u16PkgName,
 	); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil
@@ -1290,9 +1326,13 @@ func DismAddLanguage(
 	progress uintptr,
 	userData unsafe.Pointer,
 ) error {
-	u16LangName, err := windows.UTF16PtrFromString(languageName)
-	if err != nil {
-		return err
+	var u16LangName *uint16
+	var err error
+
+	if languageName != "" {
+		if u16LangName, err = windows.UTF16PtrFromString(languageName); err != nil {
+			return err
+		}
 	}
 
 	u16SrcPaths, err := utils.StrSliceToUtf16PtrArr(sourcePaths)
@@ -1311,7 +1351,7 @@ func DismAddLanguage(
 		progress,
 		userData,
 	); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil
@@ -1324,9 +1364,13 @@ func DismRemoveLanguage(
 	progress uintptr,
 	userData unsafe.Pointer,
 ) error {
-	u16LangName, err := windows.UTF16PtrFromString(languageName)
-	if err != nil {
-		return err
+	var u16LangName *uint16
+	var err error
+
+	if languageName != "" {
+		if u16LangName, err = windows.UTF16PtrFromString(languageName); err != nil {
+			return err
+		}
 	}
 
 	if err = dismRemoveLanguage(
@@ -1336,7 +1380,7 @@ func DismRemoveLanguage(
 		progress,
 		userData,
 	); err != nil {
-		return utils.HresultToError(err)
+		return dismErr(utils.HresultToError(err))
 	}
 
 	return nil

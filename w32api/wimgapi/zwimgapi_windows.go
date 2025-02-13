@@ -79,6 +79,7 @@ var (
 	procWIMSplitFile                      = modwimgapi.NewProc("WIMSplitFile")
 	procWIMUnmountImage                   = modwimgapi.NewProc("WIMUnmountImage")
 	procWIMUnmountImageHandle             = modwimgapi.NewProc("WIMUnmountImageHandle")
+	procWIMUnregisterLogFile              = modwimgapi.NewProc("WIMUnregisterLogFile")
 	procWIMUnregisterMessageCallback      = modwimgapi.NewProc("WIMUnregisterMessageCallback")
 )
 
@@ -126,7 +127,7 @@ func wimCopyFile(existingFileName *uint16, newFileName *uint16, progressRoutine 
 func wimCreateFile(wimPath *uint16, desiredAccess uint32, creationDisposition uint32, flagsAndAttributes uint32, compressionType uint32, creationResult *uint32) (handle windows.Handle, err error) {
 	r0, _, e1 := syscall.Syscall6(procWIMCreateFile.Addr(), 6, uintptr(unsafe.Pointer(wimPath)), uintptr(desiredAccess), uintptr(creationDisposition), uintptr(flagsAndAttributes), uintptr(compressionType), uintptr(unsafe.Pointer(creationResult)))
 	handle = windows.Handle(r0)
-	if handle == windows.InvalidHandle {
+	if handle == 0 {
 		err = errnoErr(e1)
 	}
 	return
@@ -391,6 +392,14 @@ func wimUnmountImage(mountPath *uint16, wimFileName *uint16, imageIndex uint32, 
 
 func WIMUnmountImageHandle(image windows.Handle, unmountFlags uint32) (err error) {
 	r1, _, e1 := syscall.Syscall(procWIMUnmountImageHandle.Addr(), 2, uintptr(image), uintptr(unmountFlags), 0)
+	if r1 == 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+func wimUnregisterLogFile(logFile *uint16) (err error) {
+	r1, _, e1 := syscall.Syscall(procWIMUnregisterLogFile.Addr(), 1, uintptr(unsafe.Pointer(logFile)), 0, 0)
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}

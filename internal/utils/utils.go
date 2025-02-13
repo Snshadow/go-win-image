@@ -34,16 +34,17 @@ func HresultToError(err error) error {
 
 func StrSliceToUtf16PtrArr(strSlice []string) ([]*uint16, error) {
 	var u16Arr []*uint16
-	var count uint32
 
 	for _, str := range strSlice {
-		u16Ptr, err := windows.UTF16PtrFromString(str)
-		if err != nil {
-			return nil, err
-		}
+		// add non-empty strings
+		if str != "" {
+			u16Ptr, err := windows.UTF16PtrFromString(str)
+			if err != nil {
+				return nil, err
+			}
 
-		u16Arr = append(u16Arr, u16Ptr)
-		count++
+			u16Arr = append(u16Arr, u16Ptr)
+		}
 	}
 
 	return u16Arr, nil

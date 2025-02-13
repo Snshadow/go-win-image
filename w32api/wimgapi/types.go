@@ -18,7 +18,7 @@ const (
 	WIM_GENERIC_MOUNT = windows.GENERIC_EXECUTE
 
 	WIM_CREATE_NEW    = windows.CREATE_NEW
-	WIM_CREATE_ALWATS = windows.CREATE_ALWAYS
+	WIM_CREATE_ALWAYS = windows.CREATE_ALWAYS
 	WIM_OPEN_EXISTING = windows.OPEN_EXISTING
 	WIM_OPEN_ALWAYS   = windows.OPEN_ALWAYS
 )
@@ -108,6 +108,8 @@ const (
 )
 
 // WIMMessageCallback Notifications
+//
+// https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/wim/dd851929(v=msdn.10)
 const (
 	WIM_MSG = wintype.WM_APP + 0x1476 + iota
 	WIM_MSG_TEXT
@@ -230,7 +232,7 @@ type WIM_FIND_DATA struct {
 	AlternateStreamNames  **uint16
 	PbReparseData         *byte
 	CbReparseData         uint32
-	ResourceSize           uint64 // ULARGE_INTEGER
+	ResourceSize          uint64 // ULARGE_INTEGER
 	Resourceoffset        int64  // LARGE_INTEGER
 	ResourceReferencePath *uint16
 }
