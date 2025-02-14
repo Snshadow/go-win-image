@@ -6,7 +6,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"github.com/Snshadow/go_win_image/w32api/wintype"
+	"github.com/Snshadow/winimg/w32api"
 )
 
 // helper structs with go friendly types
@@ -215,7 +215,7 @@ type GoDismImageInfo struct {
 	ImageName        string
 	ImageDescription string
 	ImageSize        uint64
-	Architecture     wintype.Architecture
+	Architecture     w32api.Architecture
 	ProductName      string
 	EdtitionId       string
 	InstallationType string
@@ -240,7 +240,7 @@ func (g *GoDismImageInfo) fill(st *DismImageInfo) {
 	g.ImageName = windows.UTF16PtrToString(st.ImageName)
 	g.ImageDescription = windows.UTF16PtrToString(st.ImageDescription)
 	g.ImageSize = st.ImageSize
-	g.Architecture = wintype.Architecture(st.Architecture)
+	g.Architecture = w32api.Architecture(st.Architecture)
 	g.ProductName = windows.UTF16PtrToString(st.ProductName)
 	g.EdtitionId = windows.UTF16PtrToString(st.EditionId)
 	g.InstallationType = windows.UTF16PtrToString(st.InstallationType)

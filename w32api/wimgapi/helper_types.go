@@ -6,7 +6,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"github.com/Snshadow/go_win_image/internal/utils"
+	"github.com/Snshadow/winimg/internal/utils"
 )
 
 // helper structs with go friendly types

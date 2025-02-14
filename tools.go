@@ -1,6 +1,6 @@
 //go:build tools
 
-package main
+package winimg
 
 import (
 	_ "github.com/Snshadow/mkpackstruct"

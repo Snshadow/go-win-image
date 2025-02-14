@@ -1,4 +1,4 @@
-package wintype
+package w32api
 
 import (
 	"strconv"

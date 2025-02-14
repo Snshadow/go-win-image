@@ -267,9 +267,12 @@ func WIMInitFileIOCallbacks(callbacks unsafe.Pointer) (err error) {
 	return
 }
 
-func WIMLoadImage(wim windows.Handle, imageIndex uint32) (handle windows.Handle) {
-	r0, _, _ := syscall.Syscall(procWIMLoadImage.Addr(), 2, uintptr(wim), uintptr(imageIndex), 0)
+func WIMLoadImage(wim windows.Handle, imageIndex uint32) (handle windows.Handle, err error) {
+	r0, _, e1 := syscall.Syscall(procWIMLoadImage.Addr(), 2, uintptr(wim), uintptr(imageIndex), 0)
 	handle = windows.Handle(r0)
+	if handle == 0 {
+		err = errnoErr(e1)
+	}
 	return
 }
 

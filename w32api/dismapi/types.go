@@ -70,15 +70,15 @@ const (
 	DismLogErrors DismLogLevel = iota
 	DismLogErrorsWarnings
 	DismLogErrorsWarningsInfo
-	DismLogErrorsWarningsIntoDebug
+	DismLogErrorsWarningsInfoDebug
 )
 
 type DismImageIdentifier uint32
 
 const (
-	DismImageNone DismImageIdentifier = iota
+	DismImageIndex DismImageIdentifier = iota
 	DismImageName
-	DismImageIndex
+	DismImageNone
 )
 
 type DismMountMode uint32

@@ -20,7 +20,7 @@ import (
 //sys	wimGetAttributes(wim windows.Handle, wimInfo *WIM_INFO, cbWimInfo uint32) (err error) = wimgapi.WIMGetAttributes
 //sys	WIMSetBootImage(wim windows.Handle, imageIndex uint32) (err error) = wimgapi.WIMSetBootImage
 //sys	wimCaptureImage(wim windows.Handle, path *uint16, captureFlags uint32) (handle windows.Handle, err error) = wimgapi.WIMCaptureImage
-//sys	WIMLoadImage(wim windows.Handle, imageIndex uint32) (handle windows.Handle) = wimgapi.WIMLoadImage
+//sys	WIMLoadImage(wim windows.Handle, imageIndex uint32) (handle windows.Handle, err error) = wimgapi.WIMLoadImage
 //sys	wimApplyImage(image windows.Handle, path *uint16, applyFlags uint32) (err error) = wimgapi.WIMApplyImage
 //sys	wimGetImageInformation(image windows.Handle, imageInfo *unsafe.Pointer, cbImageInfo *uint32) (err error) = wimgapi.WIMGetImageInformation
 //sys	wimSetImageInformation(image windows.Handle, imageInfo unsafe.Pointer, cbImageInfo uint32) (err error) = wimgapi.WIMSetImageInformation
@@ -260,7 +260,7 @@ func WIMCopyFile(
 	newFileName string,
 	progressRoutine uintptr,
 	data unsafe.Pointer,
-	cancel *int32, // BOOL
+	cancel *int32, // PBOOL
 	copyFlags uint32,
 ) error {
 	u16ExistName, err := windows.UTF16PtrFromString(existingFileName)

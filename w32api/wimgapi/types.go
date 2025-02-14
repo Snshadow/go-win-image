@@ -5,11 +5,11 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"github.com/Snshadow/go_win_image/w32api/wintype"
+	"github.com/Snshadow/winimg/w32api"
 )
 
-type LPARAM wintype.LONG_PTR
-type WPARAM wintype.ULONG_PTR
+type LPARAM w32api.LONG_PTR
+type WPARAM w32api.ULONG_PTR
 
 // WIMCreateFile
 const (
@@ -111,7 +111,7 @@ const (
 //
 // https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/wim/dd851929(v=msdn.10)
 const (
-	WIM_MSG = wintype.WM_APP + 0x1476 + iota
+	WIM_MSG = w32api.WM_APP + 0x1476 + iota
 	WIM_MSG_TEXT
 	WIM_MSG_PROGRESS
 	WIM_MSG_PROCESS
@@ -225,7 +225,7 @@ type WIM_IO_RANGE_CALLBACK struct {
 }
 
 type WIM_FIND_DATA struct {
-	wintype.WIN32_FIND_DATAW
+	w32api.WIN32_FIND_DATAW
 	Hash               [20]byte
 	SecurityDescriptor *windows.SECURITY_DESCRIPTOR
 	// double-null terminated, read from *AlternateStreamNames with [windows.UTF16ToString] & [unsafe.Add]
