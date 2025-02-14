@@ -1,14 +1,16 @@
+// Package winimg provides function to access and manupulate Windows image(.wim, .esd) files.
+
 package winimg
 
 import (
 	"errors"
-	"sync"
 
 	"golang.org/x/sys/windows"
 
-	"github.com/deckarep/golang-set/v2"
 	"github.com/Snshadow/winimg/w32api/dismapi"
 	"github.com/Snshadow/winimg/w32api/wimgapi"
+	"github.com/deckarep/golang-set/v2"
+	"github.com/puzpuzpuz/xsync/v3"
 )
 
 var (
@@ -129,7 +131,7 @@ func (d *DismImageFile) Unmount(mountPath string, commit, append, integrity bool
 	return nil
 }
 
-// OpenSession opens DismSession from a mount path, if windowsPath and
+// OpenSession opens DismSession from a mount path, if windowsPath or
 // systemDrive are empty, default values will be used.
 func (d *DismImageFile) OpenSession(mountPath, windowsPath, systemDrive string) (dismapi.DismSession, error) {
 	if !d.MountPaths.ContainsOne(mountPath) {
@@ -203,6 +205,8 @@ type WIMImageHandle struct {
 	Handle windows.Handle
 	// if not empty, the image handle is mounted
 	MountPath string
+
+	imgMapRef *xsync.MapOf[uint32, *WIMImageHandle]
 }
 
 // Apply applies an image in .wim file to specified path.
@@ -262,12 +266,11 @@ type WIMImageFile struct {
 	imageFilePath string
 	// handle from WIMCreateFile with .wim file
 	ImageFileHandle windows.Handle
-	// handles from [wimgapi.WIMLoadImage] and [wimgapi.WIMCaptureImage], mapped with image index
-	ImageHandles map[uint32]*WIMImageHandle
+	// handles from [wimgapi.WIMLoadImage] and [wimgapi.WIMCaptureImage],
+	// mapped with image index
+	ImageHandles *xsync.MapOf[uint32, *WIMImageHandle]
 	// mounted paths from [wimgapi.WIMMountImage], mapped with image index
-	MountPaths map[uint32]string
-
-	imgMut, mntMut *sync.Mutex
+	MountPaths *xsync.MapOf[uint32, string]
 }
 
 // NewWIMImageFile opens or creates image file.
@@ -275,7 +278,7 @@ type WIMImageFile struct {
 // access: [wimgapi.WIM_GENERIC_READ]... /
 // createmode: [wimgapi.WIM_OPEN_EXISTING]... /
 // flags: [wimgapi.WIM_FLAG_VERIFY]... /
-// compressionType: [wimgapi.WIM_COMPRESS_LZX]... /
+// compressionType: [wimgapi.WIM_COMPRESS_LZX]...
 func NewWIMImageFile(imageFilePath string, access uint32, createMode uint32, flags uint32,
 	compressionType uint32) (*WIMImageFile, error) {
 	wimHandle, _, err := wimgapi.WIMCreateFile(imageFilePath, access, createMode, flags, compressionType, false)
@@ -286,10 +289,8 @@ func NewWIMImageFile(imageFilePath string, access uint32, createMode uint32, fla
 	return &WIMImageFile{
 		imageFilePath:   imageFilePath,
 		ImageFileHandle: wimHandle,
-		ImageHandles:    make(map[uint32]*WIMImageHandle),
-		MountPaths:      make(map[uint32]string),
-		imgMut:          &sync.Mutex{},
-		mntMut:          &sync.Mutex{},
+		ImageHandles:    xsync.NewMapOf[uint32, *WIMImageHandle](),
+		MountPaths:      xsync.NewMapOf[uint32, string](),
 	}, nil
 }
 
@@ -310,27 +311,24 @@ func (w *WIMImageFile) LoadImage(imageIndex uint32) (*WIMImageHandle, error) {
 	}
 
 	imgHandle := &WIMImageHandle{
-		Handle: hnd,
+		Handle:    hnd,
+		imgMapRef: w.ImageHandles,
 	}
 
-	w.imgMut.Lock()
-	w.ImageHandles[imageIndex] = imgHandle
-	w.imgMut.Unlock()
+	w.ImageHandles.Store(imageIndex, imgHandle)
 
 	return imgHandle, err
 }
 
-// Mount mounts an image with imageIndex, is tempPath is empty, the image will not
-// be mounted for edits.
+// Mount mounts an image with imageIndex, is tempPath is empty,
+// the image will not be mounted for edits.
 func (w *WIMImageFile) Mount(mountPath string, imageIndex uint32, tempPath string) error {
 	err := wimgapi.WIMMountImage(mountPath, w.imageFilePath, imageIndex, tempPath)
 	if err != nil {
 		return err
 	}
 
-	w.mntMut.Lock()
-	w.MountPaths[imageIndex] = mountPath
-	w.mntMut.Unlock()
+	w.MountPaths.Store(imageIndex, mountPath)
 
 	return nil
 }
@@ -343,9 +341,7 @@ func (w *WIMImageFile) Unmount(mountPath string, imageIndex uint32, commitChange
 		return err
 	}
 
-	w.mntMut.Lock()
-	delete(w.MountPaths, imageIndex)
-	w.mntMut.Unlock()
+	w.MountPaths.Delete(imageIndex)
 
 	return nil
 }
@@ -355,7 +351,7 @@ func (w *WIMImageFile) Unmount(mountPath string, imageIndex uint32, commitChange
 func (w *WIMImageFile) Close() error {
 	var err error
 
-	for index, imgHandle := range w.ImageHandles {
+	w.ImageHandles.Range(func(index uint32, imgHandle *WIMImageHandle) bool {
 		if imgHandle.MountPath != "" {
 			unmountErr := wimgapi.WIMUnmountImageHandle(imgHandle.Handle, 0)
 			if unmountErr != nil {
@@ -369,22 +365,22 @@ func (w *WIMImageFile) Close() error {
 		if closeErr != nil {
 			err = errors.Join(err, closeErr)
 		} else {
-			w.imgMut.Lock()
-			delete(w.ImageHandles, index)
-			w.imgMut.Unlock()
+			w.ImageHandles.Delete(index)
 		}
-	}
 
-	for index, mountPath := range w.MountPaths {
+		return true
+	})
+
+	w.MountPaths.Range(func(index uint32, mountPath string) bool {
 		unmountErr := wimgapi.WIMUnmountImage(mountPath, w.imageFilePath, index, false)
 		if unmountErr != nil {
 			err = errors.Join(err, unmountErr)
 		} else {
-			w.mntMut.Lock()
-			delete(w.MountPaths, index)
-			w.mntMut.Unlock()
+			w.MountPaths.Delete(index)
 		}
-	}
+
+		return true
+	})
 
 	if w.ImageFileHandle != 0 {
 		err = errors.Join(wimgapi.WIMCloseHandle(w.ImageFileHandle))
