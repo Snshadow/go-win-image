@@ -194,18 +194,16 @@ func (g *GoDismCapabilityInfo) fill(st *DismCapabilityInfo) {
 }
 
 type GoDismWimCustomizedInfo struct {
-	Size           uint32
 	DirectoryCount uint32
 	FileCount      uint32
-	CreateTime     time.Time
+	CreatedTime    time.Time
 	ModifiedTime   time.Time
 }
 
 func (g *GoDismWimCustomizedInfo) fill(st *DismWimCustomizedInfo) {
-	g.Size = st.Size
 	g.DirectoryCount = st.DirectoryCount
 	g.FileCount = st.FileCount
-	g.CreateTime = time.Date(int(st.CreateTime.Year), time.Month(st.CreateTime.Month), int(st.CreateTime.Day), int(st.CreateTime.Hour), int(st.CreateTime.Minute), int(st.CreateTime.Second), int(st.CreateTime.Milliseconds)*1000000, time.Local)
+	g.CreatedTime = time.Date(int(st.CreatedTime.Year), time.Month(st.CreatedTime.Month), int(st.CreatedTime.Day), int(st.CreatedTime.Hour), int(st.CreatedTime.Minute), int(st.CreatedTime.Second), int(st.CreatedTime.Milliseconds)*1000000, time.Local)
 	g.ModifiedTime = time.Date(int(st.ModifiedTime.Year), time.Month(st.ModifiedTime.Month), int(st.ModifiedTime.Day), int(st.ModifiedTime.Hour), int(st.ModifiedTime.Minute), int(st.ModifiedTime.Second), int(st.ModifiedTime.Milliseconds)*1000000, time.Local)
 }
 

@@ -277,7 +277,7 @@ type DismWimCustomizedInfo struct {
 	Size           uint32
 	DirectoryCount uint32
 	FileCount      uint32
-	CreateTime     windows.Systemtime
+	CreatedTime    windows.Systemtime
 	ModifiedTime   windows.Systemtime
 }
 

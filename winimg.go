@@ -1,5 +1,4 @@
-// Package winimg provides function to access and manupulate Windows image(.wim, .esd) files.
-
+// Package winimg provides functions to access and manupulate Windows image(.wim, .esd) files.
 package winimg
 
 import (
@@ -19,7 +18,7 @@ var (
 )
 
 var (
-	// ignore DismInitialize called more than once in one process
+	// do not run DismInitialize when it is already initialized for a process
 	dismInitialized bool
 	// default to information level
 	dismLogLevel = dismapi.DismLogErrorsWarningsInfo
@@ -195,7 +194,12 @@ func (d *DismImageFile) Close() error {
 
 	if dismInitialized && curDismImg.IsEmpty() {
 		// shutdown DISM API if it is no longer used
-		err = errors.Join(err, dismapi.DismShutdown())
+		shutdownErr := dismapi.DismShutdown()
+		if shutdownErr != nil {
+			err = errors.Join(err, shutdownErr)
+		} else {
+			dismInitialized = false
+		}
 	}
 
 	return err
@@ -206,12 +210,13 @@ type WIMImageHandle struct {
 	// if not empty, the image handle is mounted
 	MountPath string
 
-	imgMapRef *xsync.MapOf[uint32, *WIMImageHandle]
+	imgMapRef  *xsync.MapOf[uint32, *WIMImageHandle]
+	imageIndex uint32
 }
 
 // Apply applies an image in .wim file to specified path.
 //
-// flags: [wimgapi.WIM_FLAG_VERIFY], etc...
+// flags: [wimgapi.WIM_FLAG_VERIFY], [wimgapi.WIM_FLAG_INDEX], [wimgapi.WIM_FLAG_NO_APPLY], [wimgapi.WIM_FLAG_FILEINFO], [wimgapi.WIM_FLAG_NO_RP_FIX], [wimgapi.WIM_FLAG_NO_DIRACL], [wimgapi.WIM_FLAG_NO_FILEACL]
 func (w *WIMImageHandle) Apply(path string, flags uint32) error {
 	if err := wimgapi.WIMApplyImage(w.Handle, path, flags); err != nil {
 		return err
@@ -222,7 +227,7 @@ func (w *WIMImageHandle) Apply(path string, flags uint32) error {
 
 // Mount mounts an image in .wim file to mountPath.
 //
-// flags: [wimgapi.WIM_FLAG_MOUNT_READONLY], etc...
+// flags: [wimgapi.WIM_FLAG_MOUNT_READONLY], [wimgapi.WIM_FLAG_VERIFY], [wimgapi.WIM_FLAG_NO_RP_FIX], [wimgapi.WIM_FLAG_NO_DIRACL], [wimgapi.WIM_FLAG_NO_FILEACL]
 func (w *WIMImageHandle) Mount(mountPath string, flags uint32) error {
 	if err := wimgapi.WIMMountImageHandle(w.Handle, mountPath, flags); err != nil {
 		return err
@@ -256,15 +261,22 @@ func (w *WIMImageHandle) Close() error {
 		err = errors.Join(err, w.Unmount())
 	}
 
-	err = errors.Join(err, wimgapi.WIMCloseHandle(w.Handle))
+	closeErr := wimgapi.WIMCloseHandle(w.Handle)
+	if closeErr != nil {
+		err = errors.Join(err, closeErr)
+	} else {
+		w.imgMapRef.Delete(w.imageIndex)
+	}
 
 	return err
 }
 
+// WIMImageFile contains handle for .wim file and
+// associated mount points.
 type WIMImageFile struct {
 	// path of .wim file
 	imageFilePath string
-	// handle from WIMCreateFile with .wim file
+	// handle from [wimgapi.WIMCreateFile] with .wim file
 	ImageFileHandle windows.Handle
 	// handles from [wimgapi.WIMLoadImage] and [wimgapi.WIMCaptureImage],
 	// mapped with image index
@@ -311,8 +323,9 @@ func (w *WIMImageFile) LoadImage(imageIndex uint32) (*WIMImageHandle, error) {
 	}
 
 	imgHandle := &WIMImageHandle{
-		Handle:    hnd,
-		imgMapRef: w.ImageHandles,
+		Handle:     hnd,
+		imgMapRef:  w.ImageHandles,
+		imageIndex: imageIndex,
 	}
 
 	w.ImageHandles.Store(imageIndex, imgHandle)
@@ -361,11 +374,9 @@ func (w *WIMImageFile) Close() error {
 			}
 		}
 
-		closeErr := wimgapi.WIMCloseHandle(imgHandle.Handle)
+		closeErr := imgHandle.Close()
 		if closeErr != nil {
 			err = errors.Join(err, closeErr)
-		} else {
-			w.ImageHandles.Delete(index)
 		}
 
 		return true

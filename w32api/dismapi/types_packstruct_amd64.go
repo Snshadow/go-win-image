@@ -310,14 +310,14 @@ func (s *DismWimCustomizedInfo) ToPackedByte() []byte {
 	b.Write(unsafe.Slice((*byte)(unsafe.Pointer(&s.Size)), 4))
 	b.Write(unsafe.Slice((*byte)(unsafe.Pointer(&s.DirectoryCount)), 4))
 	b.Write(unsafe.Slice((*byte)(unsafe.Pointer(&s.FileCount)), 4))
-	b.Write(unsafe.Slice((*byte)(unsafe.Pointer(&s.CreateTime.Year)), 2))
-	b.Write(unsafe.Slice((*byte)(unsafe.Pointer(&s.CreateTime.Month)), 2))
-	b.Write(unsafe.Slice((*byte)(unsafe.Pointer(&s.CreateTime.DayOfWeek)), 2))
-	b.Write(unsafe.Slice((*byte)(unsafe.Pointer(&s.CreateTime.Day)), 2))
-	b.Write(unsafe.Slice((*byte)(unsafe.Pointer(&s.CreateTime.Hour)), 2))
-	b.Write(unsafe.Slice((*byte)(unsafe.Pointer(&s.CreateTime.Minute)), 2))
-	b.Write(unsafe.Slice((*byte)(unsafe.Pointer(&s.CreateTime.Second)), 2))
-	b.Write(unsafe.Slice((*byte)(unsafe.Pointer(&s.CreateTime.Milliseconds)), 2))
+	b.Write(unsafe.Slice((*byte)(unsafe.Pointer(&s.CreatedTime.Year)), 2))
+	b.Write(unsafe.Slice((*byte)(unsafe.Pointer(&s.CreatedTime.Month)), 2))
+	b.Write(unsafe.Slice((*byte)(unsafe.Pointer(&s.CreatedTime.DayOfWeek)), 2))
+	b.Write(unsafe.Slice((*byte)(unsafe.Pointer(&s.CreatedTime.Day)), 2))
+	b.Write(unsafe.Slice((*byte)(unsafe.Pointer(&s.CreatedTime.Hour)), 2))
+	b.Write(unsafe.Slice((*byte)(unsafe.Pointer(&s.CreatedTime.Minute)), 2))
+	b.Write(unsafe.Slice((*byte)(unsafe.Pointer(&s.CreatedTime.Second)), 2))
+	b.Write(unsafe.Slice((*byte)(unsafe.Pointer(&s.CreatedTime.Milliseconds)), 2))
 	b.Write(unsafe.Slice((*byte)(unsafe.Pointer(&s.ModifiedTime.Year)), 2))
 	b.Write(unsafe.Slice((*byte)(unsafe.Pointer(&s.ModifiedTime.Month)), 2))
 	b.Write(unsafe.Slice((*byte)(unsafe.Pointer(&s.ModifiedTime.DayOfWeek)), 2))
@@ -698,7 +698,7 @@ func ToStruct[P PackedStruct](buf []byte) (P, error) {
 			Size:           *(*uint32)(unsafe.Pointer(&buf[0])),
 			DirectoryCount: *(*uint32)(unsafe.Pointer(&buf[4])),
 			FileCount:      *(*uint32)(unsafe.Pointer(&buf[8])),
-			CreateTime: windows.Systemtime{
+			CreatedTime: windows.Systemtime{
 				Year:         *(*uint16)(unsafe.Pointer(&buf[12])),
 				Month:        *(*uint16)(unsafe.Pointer(&buf[14])),
 				DayOfWeek:    *(*uint16)(unsafe.Pointer(&buf[16])),

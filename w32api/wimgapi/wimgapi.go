@@ -52,7 +52,7 @@ import (
 //sys	wimReadImageFile(imgFile windows.Handle, buffer *byte, bytesToRead uint32, bytesRead *uint32, overlapped *windows.Overlapped) (err error) = wimgapi.WIMReadImageFile
 
 // The createdNew value is set if getCreationResult is true, otherwise it
-// is always false. Close handle with [windows.CloseHandle] after use.
+// is always false. Close handle with [WIMCloseHandle] after use.
 func WIMCreateFile(
 	wimPath string,
 	desiredAccess uint32,
@@ -655,6 +655,7 @@ func WIMExtractImagePath(
 	return nil
 }
 
+// TODO check [WIM_FIND_DATA].AlternativeStreamNames allocation release.
 func WIMFindFirstImageFile(
 	image windows.Handle,
 	filePath string,

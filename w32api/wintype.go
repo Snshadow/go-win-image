@@ -57,7 +57,7 @@ type LPPROGRESS_ROUTINE func(
 	data unsafe.Pointer,
 ) /* uint32 */ uintptr
 
-// used for representing image architecture
+// Windows processor architectures
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/ns-sysinfoapi-system_info#members
 type Architecture uint32
