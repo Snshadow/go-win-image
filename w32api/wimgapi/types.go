@@ -23,8 +23,11 @@ const (
 	WIM_OPEN_ALWAYS   = windows.OPEN_ALWAYS
 )
 
+// Compression type of .wim file
+type WimCompressionType uint32
+
 const (
-	WIM_COMPRESS_NONE = iota
+	WIM_COMPRESS_NONE WimCompressionType = iota
 	WIM_COMPRESS_XPRESS
 	WIM_COMPRESS_LZX
 	WIM_COMPRESS_LZMS

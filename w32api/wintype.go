@@ -18,8 +18,8 @@ type WIN32_FIND_DATAW struct {
 	LastWriteTime     windows.Filetime
 	FileSizeHigh      uint32
 	FileSizeLow       uint32
-	_                 uint32 // Reserved0
-	_                 uint32 // Reserved1
+	Reserved0         uint32
+	Reserved1         uint32
 	FileName          [windows.MAX_PATH]uint16
 	AlternateFileName [14]uint16
 	FileType          uint32 // Deprecated: Obsolete. Do not use
@@ -63,28 +63,54 @@ type LPPROGRESS_ROUTINE func(
 type Architecture uint32
 
 const (
-	Intel   Architecture = 0 // x86
-	ARM     Architecture = 5
-	IA64    Architecture = 6
-	AMD64   Architecture = 9 // x64
-	ARM64   Architecture = 12
-	Unknown Architecture = 0xffff
+	Intel       Architecture = 0 // x86
+	MIPS        Architecture = 1
+	ALPHA       Architecture = 2
+	PPC         Architecture = 3
+	SHX         Architecture = 4
+	ARM         Architecture = 5
+	IA64        Architecture = 6
+	ALPHA64     Architecture = 7
+	MSIL        Architecture = 8
+	AMD64       Architecture = 9 // x64
+	IA32OnAMD64 Architecture = 10
+	Neutral     Architecture = 11
+	ARM64       Architecture = 12
+	Unknown     Architecture = 0xffff
 )
+
+const archStr = "x86MIPSALPHAPPCSHXARMIA-64ALPHA64MSILx86_64IA32OnAMD64NeutralARM64Unknown"
 
 func (a Architecture) String() string {
 	switch a {
 	case Intel:
-		return "x86"
+		return archStr[:3]
+	case MIPS:
+		return archStr[3:7]
+	case ALPHA:
+		return archStr[7:12]
+	case PPC:
+		return archStr[12:15]
+	case SHX:
+		return archStr[15:18]
 	case ARM:
-		return "ARM"
+		return archStr[18:21]
 	case IA64:
-		return "IA-64"
+		return archStr[21:26]
+	case ALPHA64:
+		return archStr[26:33]
+	case MSIL:
+		return archStr[33:37]
 	case AMD64:
-		return "x86_64"
+		return archStr[37:43]
+	case IA32OnAMD64:
+		return archStr[43:54]
+	case Neutral:
+		return archStr[54:61]
 	case ARM64:
-		return "ARM64"
+		return archStr[61:66]
 	case Unknown:
-		return "unknown"
+		return archStr[66:]
 	}
 
 	return "Architecture(" + strconv.FormatUint(uint64(a), 10) + ")"

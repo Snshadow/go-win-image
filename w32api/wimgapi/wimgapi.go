@@ -58,7 +58,7 @@ func WIMCreateFile(
 	desiredAccess uint32,
 	creationDisposition uint32,
 	flagsAndAttributes uint32,
-	compressionType uint32,
+	compressionType WimCompressionType,
 	getCreationResult bool,
 ) (
 	handle windows.Handle,
@@ -81,7 +81,7 @@ func WIMCreateFile(
 		desiredAccess,
 		creationDisposition,
 		flagsAndAttributes,
-		compressionType,
+		uint32(compressionType),
 		creatRes,
 	); err != nil {
 		return

@@ -12,19 +12,19 @@ import (
 
 type Wim struct {
 	XMLName    xml.Name `xml:"WIM"`
-	TotalBytes int64    `xml:"TOTALBYTES"`
+	TotalBytes uint64   `xml:"TOTALBYTES"`
 	Images     []Image  `xml:"IMAGE"`
 }
 
 type Image struct {
-	Index                int      `xml:"INDEX,attr"`
-	DirCount             int      `xml:"DIRCOUNT"`
-	FileCount            int      `xml:"FILECOUNT"`
-	TotalBytes           int64    `xml:"TOTALBYTES"`
-	HardlinkBytes        int64    `xml:"HARDLINKBYTES"`
+	Index                uint32   `xml:"INDEX,attr"`
+	DirCount             uint32   `xml:"DIRCOUNT"`
+	FileCount            uint32   `xml:"FILECOUNT"`
+	TotalBytes           uint64   `xml:"TOTALBYTES"`
+	HardlinkBytes        uint64   `xml:"HARDLINKBYTES"`
 	CreationTime         Filetime `xml:"CREATIONTIME"`
 	LastModificationTime Filetime `xml:"LASTMODIFICATIONTIME"`
-	WimBoot              int      `xml:"WIMBOOT"`
+	WimBoot              uint32   `xml:"WIMBOOT"`
 	Windows              Windows  `xml:"WINDOWS"`
 	Name                 string   `xml:"NAME"`
 	Description          string   `xml:"DESCRIPTION"`
@@ -74,7 +74,7 @@ func (f *Filetime) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 }
 
 type Windows struct {
-	Arch             int           `xml:"ARCH"`
+	Arch             uint32        `xml:"ARCH"`
 	ProductName      string        `xml:"PRODUCTNAME"`
 	EditionID        string        `xml:"EDITIONID"`
 	InstallationType string        `xml:"INSTALLATIONTYPE"`
@@ -104,11 +104,11 @@ type Fallback struct {
 }
 
 type Version struct {
-	Major   int    `xml:"MAJOR"`
-	Minor   int    `xml:"MINOR"`
-	Build   int    `xml:"BUILD"`
-	SpBuild int    `xml:"SPBUILD"`
-	SpLevel int    `xml:"SPLEVEL"`
+	Major   uint32 `xml:"MAJOR"`
+	Minor   uint32 `xml:"MINOR"`
+	Build   uint32 `xml:"BUILD"`
+	SpBuild uint32 `xml:"SPBUILD"`
+	SpLevel uint32 `xml:"SPLEVEL"`
 	Branch  string `xml:"BRANCH"`
 }
 

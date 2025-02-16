@@ -15,7 +15,7 @@ type GoWimInfo struct {
 	WimPath         string
 	Guid            windows.GUID
 	ImageCount      uint32
-	CompressionType uint32
+	CompressionType WimCompressionType
 	PartNumber      uint16
 	TotalParts      uint16
 	BootIndex       uint32
@@ -27,7 +27,7 @@ func (g *GoWimInfo) fill(st *WIM_INFO) {
 	g.WimPath = windows.UTF16ToString(st.WimPath[:])
 	g.Guid = st.Guid
 	g.ImageCount = st.ImageCount
-	g.CompressionType = st.CompressionType
+	g.CompressionType = WimCompressionType(st.CompressionType)
 	g.PartNumber = st.PartNumber
 	g.TotalParts = st.TotalParts
 	g.BootIndex = st.BootIndex

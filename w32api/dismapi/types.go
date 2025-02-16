@@ -12,7 +12,7 @@ type DismSession uint32
 
 // void DismProgressCallback(_In_ UINT Current,	_In_ UINT Total, _In_ PVOID UserData)
 //
-// return uintptr for windows.NewCallback requirement
+// return uintptr(0) for [windows.NewCallback] requirement
 type DismProgressCallback func(current uint32, total uint32, userData unsafe.Pointer) uintptr
 
 // Dism error values
