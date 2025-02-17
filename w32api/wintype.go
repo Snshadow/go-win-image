@@ -79,7 +79,7 @@ const (
 	Unknown     Architecture = 0xffff
 )
 
-const archStr = "x86MIPSALPHAPPCSHXARMIA-64ALPHA64MSILx86_64IA32OnAMD64NeutralARM64Unknown"
+const archStr = "x86MIPSALPHAPPCSHXARMIA-64ALPHA64MSILx86_64IA-32OnAMD64NeutralARM64Unknown"
 
 func (a Architecture) String() string {
 	switch a {
@@ -104,14 +104,59 @@ func (a Architecture) String() string {
 	case AMD64:
 		return archStr[37:43]
 	case IA32OnAMD64:
-		return archStr[43:54]
+		return archStr[43:55]
 	case Neutral:
-		return archStr[54:61]
+		return archStr[55:62]
 	case ARM64:
-		return archStr[61:66]
+		return archStr[62:67]
 	case Unknown:
-		return archStr[66:]
+		return archStr[67:]
 	}
 
 	return "Architecture(" + strconv.FormatUint(uint64(a), 10) + ")"
+}
+
+// Some common undocumented error values from wimgapi or DISM API
+// functions. Defined for showing error message which would be
+// shown in Dism.exe instead of showing "winapi error #(num)"
+type WinimgInternalErr uint32
+
+// TODO need to add more?
+const (
+	ErrDirNotExist       WinimgInternalErr = 0xc1420114
+	ErrMountDirInUse     WinimgInternalErr = 0xc1420117
+	ErrCommitUnavailable WinimgInternalErr = 0xc142011d
+	ErrAlreadyMounted    WinimgInternalErr = 0xc1420127
+)
+
+func (e WinimgInternalErr) Error() string {
+	switch e {
+	case ErrDirNotExist:
+		return "The user attempted to mount to a directory that does not exist. This is not supported."
+	case ErrMountDirInUse:
+		return "The directory could not be completely unmounted. This is usually due to applications that still have files opened withing the directory. Close these files and unmount again to complete the unmount process."
+	case ErrCommitUnavailable:
+		return "The specified mounted image cannot be committed back into the WIM. This occurs when an image has been through a partial unmount or when an image is still being mounted. If this image was unmounted with commit earlier, then the commit probably succeeded. Please validate that this is the case and then unmount without commit."
+	case ErrAlreadyMounted:
+		return "The specified image in the specified wim is already mounted for read and write access."
+	}
+
+	return ""
+}
+
+// WrapInternalErr tries to wrap error value if it is a
+// known undocumented error value to show error message.
+func WrapInternalErr(e error) error {
+	errno, ok := e.(windows.Errno)
+	if !ok {
+		return e
+	}
+
+	lookupErr := WinimgInternalErr(errno)
+
+	if lookupErr.Error() != "" {
+		return lookupErr
+	}
+
+	return e
 }

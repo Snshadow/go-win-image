@@ -3,6 +3,8 @@ package winimg
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 
 	"golang.org/x/sys/windows"
 
@@ -223,35 +225,78 @@ func (d *DismImageFile) Close() error {
 	return err
 }
 
-type WIMVolumeImage struct {
-	Handle windows.Handle
-	// if not empty, the image handle is mounted
-	MountPath string
-
-	imgMapRef  *xsync.MapOf[uint32, *WIMVolumeImage]
-	imageIndex uint32
-}
-
-// GetImageInfo returns xml info of a image in bytes.
-func (w *WIMVolumeImage) GetImageInfo() ([]byte, error) {
-	return wimgapi.WIMGetImageInformation(w.Handle)
-}
-
-// Apply applies a volume image in .wim file to specified path.
-//
-// flags: [wimgapi.WIM_FLAG_VERIFY], [wimgapi.WIM_FLAG_INDEX], [wimgapi.WIM_FLAG_NO_APPLY], [wimgapi.WIM_FLAG_FILEINFO], [wimgapi.WIM_FLAG_NO_RP_FIX], [wimgapi.WIM_FLAG_NO_DIRACL], [wimgapi.WIM_FLAG_NO_FILEACL]
-func (w *WIMVolumeImage) Apply(path string, flags uint32) error {
-	if err := wimgapi.WIMApplyImage(w.Handle, path, flags); err != nil {
+// RegisterWimLog registers logFile for logging wimgapi
+// operations, flags is reserved and always 0.
+func RegisterWimLog(logFile string, flags uint32) error {
+	err := wimgapi.WIMRegisterLogFile(logFile, flags)
+	if err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// Export exports a volume image in .wim file to another .wim file.
+// UnregisterWimLog unregisters logfile for logging
+// wimgapi operations used in [RegisterWimLog].
+func UnregisterWimLog(logFile string) error {
+	err := wimgapi.WIMUnresigisterLogFile(logFile)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// WimVolumeImage store handle and mount path for
+// a volume image in .wim file.
+type WimVolumeImage struct {
+	Handle windows.Handle
+	// if not empty, the image handle is mounted
+	MountPath string
+
+	imageIndex uint32
+	wimRef     *WimImageFile
+}
+
+// GetImageInfo returns xml info of a image in bytes.
+func (w *WimVolumeImage) GetImageInfo() ([]byte, error) {
+	return wimgapi.WIMGetImageInformation(w.Handle)
+}
+
+// Apply applies a volume image in .wim file to specified path.
+//
+// flags: [wimgapi.WIM_FLAG_VERIFY], [wimgapi.WIM_FLAG_INDEX], [wimgapi.WIM_FLAG_NO_APPLY],
+// [wimgapi.WIM_FLAG_FILEINFO], [wimgapi.WIM_FLAG_NO_RP_FIX], [wimgapi.WIM_FLAG_NO_DIRACL],
+// [wimgapi.WIM_FLAG_NO_FILEACL]
+func (w *WimVolumeImage) Apply(applyPath string, flags uint32) error {
+	// if !w.wimRef.tempPathSet {
+	// 	if err := w.wimRef.setTempPath(); err != nil {
+	// 		return err
+	// 	}
+	// }
+
+	if err := wimgapi.WIMApplyImage(w.Handle, applyPath, flags); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Export transfers a volume image in .wim file to another .wim file.
 //
 // flags: [wimgapi.WIM_EXPORT_ALLOW_DUPLICATES]...
-func (w *WIMVolumeImage) Export(wim *WIMImageFile, flags uint32) error {
+func (w *WimVolumeImage) Export(wim *WimImageFile, flags uint32) error {
+	if !w.wimRef.tempPathSet {
+		if err := w.wimRef.setTempPath(); err != nil {
+			return err
+		}
+	}
+	if !wim.tempPathSet {
+		if err := wim.setTempPath(); err != nil {
+			return err
+		}
+	}
+
 	if err := wimgapi.WIMExportImage(w.Handle, wim.Handle, flags); err != nil {
 		return err
 	}
@@ -262,7 +307,7 @@ func (w *WIMVolumeImage) Export(wim *WIMImageFile, flags uint32) error {
 // Mount mounts a volume image in .wim file to mountPath.
 //
 // flags: [wimgapi.WIM_FLAG_MOUNT_READONLY], [wimgapi.WIM_FLAG_VERIFY], [wimgapi.WIM_FLAG_NO_RP_FIX], [wimgapi.WIM_FLAG_NO_DIRACL], [wimgapi.WIM_FLAG_NO_FILEACL]
-func (w *WIMVolumeImage) Mount(mountPath string, flags uint32) error {
+func (w *WimVolumeImage) Mount(mountPath string, flags uint32) error {
 	if err := wimgapi.WIMMountImageHandle(w.Handle, mountPath, flags); err != nil {
 		return err
 	}
@@ -273,7 +318,7 @@ func (w *WIMVolumeImage) Mount(mountPath string, flags uint32) error {
 }
 
 // Unmount unmounts a volume image in .wim file from mounted path.
-func (w *WIMVolumeImage) Unmount() error {
+func (w *WimVolumeImage) Unmount() error {
 	if w.MountPath == "" {
 		return ErrNotMounted
 	}
@@ -288,7 +333,7 @@ func (w *WIMVolumeImage) Unmount() error {
 }
 
 // Close closes a handle of volume image in .wim, unmounts it if required.
-func (w *WIMVolumeImage) Close() error {
+func (w *WimVolumeImage) Close() error {
 	var err error
 
 	if w.MountPath != "" {
@@ -299,70 +344,136 @@ func (w *WIMVolumeImage) Close() error {
 	if closeErr != nil {
 		err = errors.Join(err, closeErr)
 	} else {
-		w.imgMapRef.Delete(w.imageIndex)
+		w.wimRef.ImageHandles.Delete(w.imageIndex)
 	}
 
 	return err
 }
 
-// WIMImageFile contains handle for .wim file and associated mount points.
-type WIMImageFile struct {
-	// path of .wim file
-	imageFilePath string
+// WimImageFile contains handle for .wim file and associated mount points.
+type WimImageFile struct {
 	// handle from [wimgapi.WIMCreateFile] with .wim file
 	Handle windows.Handle
 	// handles from [wimgapi.WIMLoadImage] and [wimgapi.WIMCaptureImage],
 	// mapped with image index
-	ImageHandles *xsync.MapOf[uint32, *WIMVolumeImage]
-	// mounted paths from [wimgapi.WIMMountImage], mapped with image index
-	MountPaths *xsync.MapOf[uint32, string]
+	ImageHandles *xsync.MapOf[uint32, *WimVolumeImage]
+
+	// path of .wim file
+	imageFilePath string
+	// temporary path for capture and apply
+	tempPath string
+	// image count in .wim file
+	imageCount uint32
+	// is temporary path is set or created?
+	tempPathSet, tempCreated bool
 }
 
-// NewWIMImageFile opens or creates image file.
+// NewWIMImageFile opens or creates image file, if tempPath is empty,
+// temporary directory will be created with random name if needed.
 //
 // access: [wimgapi.WIM_GENERIC_READ]... /
 // createmode: [wimgapi.WIM_OPEN_EXISTING]... /
 // flags: [wimgapi.WIM_FLAG_VERIFY]... /
 func NewWIMImageFile(imageFilePath string, access uint32, createMode uint32, flags uint32,
-	compressionType wimgapi.WimCompressionType) (*WIMImageFile, error) {
-	wimHandle, _, err := wimgapi.WIMCreateFile(imageFilePath, access, createMode, flags, compressionType, false)
+	compressionType wimgapi.WimCompressionType, tempPath string) (*WimImageFile, error) {
+	wimHandle, _, err := wimgapi.WIMCreateFile(imageFilePath, access, createMode,
+		flags, compressionType, false)
 	if err != nil {
 		return nil, err
 	}
 
-	return &WIMImageFile{
-		imageFilePath: imageFilePath,
+	return &WimImageFile{
 		Handle:        wimHandle,
-		ImageHandles:  xsync.NewMapOf[uint32, *WIMVolumeImage](),
-		MountPaths:    xsync.NewMapOf[uint32, string](),
+		ImageHandles:  xsync.NewMapOf[uint32, *WimVolumeImage](),
+		imageFilePath: imageFilePath,
+		imageCount:    wimgapi.WIMGetImageCount(wimHandle),
+		tempPath:      tempPath,
 	}, nil
 }
 
-// ImageFilePath returns path of the image(.wim) file.
-func (w *WIMImageFile) ImageFilePath() string {
+// setTempPath sets temporary path used for WIM operation.
+func (w *WimImageFile) setTempPath() error {
+	if w.tempPath == "" {
+		w.tempPath, _ = os.MkdirTemp("", filepath.Base(w.imageFilePath))
+		w.tempCreated = true
+	}
+
+	err := wimgapi.WIMSetTemporaryPath(w.Handle, w.tempPath)
+	if err != nil {
+		return err
+	}
+
+	w.tempPathSet = true
+
+	return nil
+}
+
+// GetImageCount updates and returns the number of
+// volume images stored in .wim file.
+func (w *WimImageFile) GetImageCount() uint32 {
+	w.imageCount = wimgapi.WIMGetImageCount(w.Handle)
+
+	return w.imageCount
+}
+
+// GetImageFilePath returns path of the image(.wim) file.
+func (w *WimImageFile) GetImageFilePath() string {
 	return w.imageFilePath
 }
 
+// Capture captures a directory path and stores it in an .wim
+// file which is added as a volume image and returns it.
+func (w *WimImageFile) Capture(capturePath string, flags uint32) (*WimVolumeImage, error) {
+	if !w.tempPathSet {
+		if err := w.setTempPath(); err != nil {
+			return nil, err
+		}
+	}
+
+	volHnd, err := wimgapi.WIMCaptureImage(w.Handle, capturePath, flags)
+	if err != nil {
+		return nil, err
+	}
+
+	w.imageCount++
+
+	newVolume := &WimVolumeImage{
+		Handle:     volHnd,
+		imageIndex: w.imageCount,
+		wimRef:     w,
+	}
+
+	w.ImageHandles.Store(w.imageCount, newVolume)
+
+	return newVolume, nil
+}
+
 // GetFileInfo returns xml info of .wim file in bytes.
-func (w *WIMImageFile) GetFileInfo() ([]byte, error) {
+func (w *WimImageFile) GetFileInfo() ([]byte, error) {
 	return wimgapi.WIMGetImageInformation(w.Handle)
 }
 
-func (w *WIMImageFile) GetAttributes() (wimgapi.GoWimInfo, error) {
+func (w *WimImageFile) GetAttributes() (wimgapi.GoWimInfo, error) {
 	return wimgapi.WIMGetAttributes(w.Handle)
 }
 
 // LoadImage loads volume image from .wim file with image index.
-func (w *WIMImageFile) LoadImage(imageIndex uint32) (*WIMVolumeImage, error) {
+func (w *WimImageFile) LoadImage(imageIndex uint32) (*WimVolumeImage, error) {
+	if !w.tempPathSet {
+		if err := w.setTempPath(); err != nil {
+			return nil, err
+		}
+	}
+
 	hnd, err := wimgapi.WIMLoadImage(w.Handle, imageIndex)
 	if err != nil {
 		return nil, err
 	}
 
-	imgHandle := &WIMVolumeImage{
+	imgHandle := &WimVolumeImage{
 		Handle:     hnd,
-		imgMapRef:  w.ImageHandles,
 		imageIndex: imageIndex,
+		wimRef:     w,
 	}
 
 	w.ImageHandles.Store(imageIndex, imgHandle)
@@ -370,38 +481,12 @@ func (w *WIMImageFile) LoadImage(imageIndex uint32) (*WIMVolumeImage, error) {
 	return imgHandle, err
 }
 
-// Mount mounts an image with imageIndex, is tempPath is empty,
-// the image will not be mounted for edits.
-func (w *WIMImageFile) Mount(mountPath string, imageIndex uint32, tempPath string) error {
-	err := wimgapi.WIMMountImage(mountPath, w.imageFilePath, imageIndex, tempPath)
-	if err != nil {
-		return err
-	}
-
-	w.MountPaths.Store(imageIndex, mountPath)
-
-	return nil
-}
-
-// Unmount unmounts an image with mountPath and imageIndex, if commitChanges
-// is true, changes in mounted directory will be saved to .wim file.
-func (w *WIMImageFile) Unmount(mountPath string, imageIndex uint32, commitChanges bool) error {
-	err := wimgapi.WIMUnmountImage(mountPath, w.imageFilePath, imageIndex, commitChanges)
-	if err != nil {
-		return err
-	}
-
-	w.MountPaths.Delete(imageIndex)
-
-	return nil
-}
-
-// Close cleans up all mount points and handles, note that this will
-// discard changes in mount points created with Mount().
-func (w *WIMImageFile) Close() error {
+// Close cleans up all mount points and volume image handles, note that
+// this will discard changes in mount points created with Mount().
+func (w *WimImageFile) Close() error {
 	var err error
 
-	w.ImageHandles.Range(func(index uint32, imgHandle *WIMVolumeImage) bool {
+	w.ImageHandles.Range(func(index uint32, imgHandle *WimVolumeImage) bool {
 		if imgHandle.MountPath != "" {
 			unmountErr := wimgapi.WIMUnmountImageHandle(imgHandle.Handle, 0)
 			if unmountErr != nil {
@@ -419,29 +504,58 @@ func (w *WIMImageFile) Close() error {
 		return true
 	})
 
-	w.MountPaths.Range(func(index uint32, mountPath string) bool {
-		unmountErr := wimgapi.WIMUnmountImage(mountPath, w.imageFilePath, index, false)
-		if unmountErr != nil {
-			err = errors.Join(err, unmountErr)
-		} else {
-			w.MountPaths.Delete(index)
-		}
-
-		return true
-	})
-
 	if w.Handle != 0 {
-		err = errors.Join(wimgapi.WIMCloseHandle(w.Handle))
+		err = errors.Join(err, wimgapi.WIMCloseHandle(w.Handle))
+	}
+
+	// remove temporary directory if it was created
+	if w.tempCreated {
+		err = errors.Join(err, os.RemoveAll(w.tempPath))
 	}
 
 	return err
+}
+
+// MountWimImage mounts an image with mount path, .wim file path and image
+// index, is tempPath is empty, the image will not be mounted for edits.
+// Cannot be used if [WimImageFile] exists for this .wim file.
+func MountWimImage(mountPath, imageFilePath string, imageIndex uint32, tempPath string) error {
+	err := wimgapi.WIMMountImage(mountPath, imageFilePath, imageIndex, tempPath)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmountWimImage unmounts an image with mountPath and imageIndex, if
+// commitChanges is true, changes in mounted directory will be saved to
+// .wim file if tempPath was specified in [MountWimImage].
+func UnmountWimImage(mountPath, imageFilePath string, imageIndex uint32, commitChanges bool) error {
+	err := wimgapi.WIMUnmountImage(mountPath, imageFilePath, imageIndex, commitChanges)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// RemountWimImage remounts an image mount to mountPath, it maps
+// contents if mounted image volume to the directory. The value is
+// of flags is reserved and always zero.
+func RemountWimImage(mountPath string, flags uint32) error {
+	if err := wimgapi.WIMRemountImage(mountPath, flags); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type WinImage struct {
 	filePath string
 
 	DismImage *DismImageFile
-	WimImage  *WIMImageFile
+	WimImage  *WimImageFile
 }
 
 func (w *WinImage) Path() string {

@@ -10,6 +10,7 @@ import (
 	"golang.org/x/sys/windows"
 
 	"github.com/Snshadow/winimg/internal/utils"
+	"github.com/Snshadow/winimg/w32api"
 )
 
 var (
@@ -83,7 +84,7 @@ func DismInitialize(
 		u16LogFilePath,
 		u16ScratchDir,
 	); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil
@@ -91,7 +92,7 @@ func DismInitialize(
 
 func DismShutdown() error {
 	if err := dismShutdown(); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil
@@ -136,7 +137,7 @@ func DismMountImage(
 		progress,
 		userData,
 	); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil
@@ -161,7 +162,7 @@ func DismUnmountImage(
 		progress,
 		userData,
 	); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil
@@ -199,7 +200,7 @@ func DismOpenSession(
 		u16SysDrv,
 		&ses,
 	); err != nil {
-		return 0, dismErr(utils.HresultToError(err))
+		return 0, w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return ses, nil
@@ -207,7 +208,7 @@ func DismOpenSession(
 
 func DismCloseSession(session DismSession) error {
 	if err := dismCloseSession(session); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil
@@ -217,15 +218,13 @@ func DismGetLastErrorMessage() (string, error) {
 	var errorMsg *DismString
 
 	if err := dismGetLastErrorMessage(&errorMsg); err != nil {
-		return "", dismErr(utils.HresultToError(err))
+		return "", w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	lastErrMsg := windows.UTF16PtrToString(errorMsg.Value)
 
-	if err := DismDelete(unsafe.Pointer(errorMsg)); err != nil {
-		parsedErr := dismErr(utils.HresultToError(err))
-
-		return lastErrMsg, errors.Join(ErrDelete, parsedErr)
+	if delErr := DismDelete(unsafe.Pointer(errorMsg)); delErr != nil {
+		return lastErrMsg, errors.Join(ErrDelete, delErr)
 	}
 
 	return lastErrMsg, nil
@@ -239,7 +238,7 @@ func DismRemountImage(mountPath string) error {
 	}
 
 	if err = dismRemountImage(u16MntPath); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil
@@ -259,7 +258,7 @@ func DismCommitImage(
 		progress,
 		userData,
 	); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil
@@ -285,7 +284,7 @@ func DismGetImageInfo(imageFilePath string) (imageInfo []GoDismImageInfo, err er
 		&infoPtr,
 		&count,
 	); err != nil {
-		err = dismErr(utils.HresultToError(err))
+		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 		return
 	}
 
@@ -322,7 +321,7 @@ func DismGetMountedImageInfo() (mountedImageInfo []GoDismMountedImageInfo, err e
 		&infoPtr,
 		&count,
 	); err != nil {
-		err = dismErr(utils.HresultToError(err))
+		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 		return
 	}
 
@@ -367,7 +366,7 @@ func DismCheckImageHealth(
 		userData,
 		&imageHealth,
 	); err != nil {
-		err = dismErr(utils.HresultToError(err))
+		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return
@@ -401,7 +400,7 @@ func DismRestoreImageHealth(
 		progress,
 		userData,
 	); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil
@@ -409,7 +408,7 @@ func DismRestoreImageHealth(
 
 func DismDelete(dismStructure unsafe.Pointer) error {
 	if err := dismDelete(dismStructure); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil
@@ -438,7 +437,7 @@ func DismAddPackage(
 		progress,
 		userData,
 	); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil
@@ -469,7 +468,7 @@ func DismRemovePackage(
 		progress,
 		userData,
 	); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil
@@ -523,7 +522,7 @@ func DismEnableFeature(
 		progress,
 		userData,
 	); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil
@@ -560,7 +559,7 @@ func DismDisableFeature(
 		progress,
 		userData,
 	); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil
@@ -581,7 +580,7 @@ func DismGetPackages(session DismSession) (packages []GoDismPackage, err error) 
 		&pkgPtr,
 		&count,
 	); err != nil {
-		err = dismErr(utils.HresultToError(err))
+		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 		return
 	}
 
@@ -627,7 +626,7 @@ func DismGetPackageInfo(
 		packageIdentifier,
 		&pkgInfoPtr,
 	); err != nil {
-		err = dismErr(utils.HresultToError(err))
+		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 		return
 	}
 
@@ -666,7 +665,7 @@ func DismGetPackageInfoEx(
 		packageIdentifier,
 		&pkgInfoPtrEx,
 	); err != nil {
-		err = dismErr(utils.HresultToError(err))
+		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 		return
 	}
 
@@ -707,7 +706,7 @@ func DismGetFeatures(
 		&featPtr,
 		&count,
 	); err != nil {
-		err = dismErr(utils.HresultToError(err))
+		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 
 		return
 	}
@@ -763,7 +762,7 @@ func DismGetFeatureInfo(
 		packageIdentifier,
 		&featInfoPtr,
 	); err != nil {
-		err = dismErr(utils.HresultToError(err))
+		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	if featInfoPtr != nil {
@@ -810,7 +809,7 @@ func DismGetFeatureParent(
 		&featPtr,
 		&count,
 	); err != nil {
-		err = dismErr(utils.HresultToError(err))
+		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 		return
 	}
 
@@ -846,7 +845,7 @@ func DismApplyUnattend(
 		u16unattend,
 		singleSession,
 	); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil
@@ -867,7 +866,7 @@ func DismAddDriver(
 		u16DrvPath,
 		forceUnsigned,
 	); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil
@@ -886,7 +885,7 @@ func DismRemoveDriver(
 		session,
 		u16DrvPath,
 	); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil
@@ -911,7 +910,7 @@ func DismGetDrivers(
 		&drvPkgPtr,
 		&count,
 	); err != nil {
-		err = dismErr(utils.HresultToError(err))
+		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 		return
 	}
 
@@ -975,7 +974,7 @@ func DismGetDriverInfo(
 		&count,
 		packageParam,
 	); err != nil {
-		err = dismErr(utils.HresultToError(err))
+		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 		return
 	}
 
@@ -1020,7 +1019,7 @@ func DismGetCapabilities(session DismSession) (capability []GoDismCapability, er
 		&capPtr,
 		&count,
 	); err != nil {
-		err = dismErr(utils.HresultToError(err))
+		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 
 		return
 	}
@@ -1066,7 +1065,7 @@ func DismGetCapabilityInfo(
 		u16Name,
 		&infoPtr,
 	); err != nil {
-		err = dismErr(utils.HresultToError(err))
+		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 
 		return
 	}
@@ -1114,7 +1113,7 @@ func DismAddCapability(
 		progress,
 		userData,
 	); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil
@@ -1139,7 +1138,7 @@ func DismRemoveCapability(
 		progress,
 		userData,
 	); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil
@@ -1150,7 +1149,7 @@ func DismGetReservedStorageState(session DismSession) (state uint32, err error) 
 		session,
 		&state,
 	); err != nil {
-		err = dismErr(utils.HresultToError(err))
+		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return
@@ -1164,7 +1163,7 @@ func DismSetReservedStorageState(
 		session,
 		state,
 	); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil
@@ -1185,7 +1184,7 @@ func DismGetProvisionedAppxPackages(session DismSession) (appxPackage []GoDismAp
 		&pkgPtr,
 		&count,
 	); err != nil {
-		err = dismErr(utils.HresultToError(err))
+		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 
 		return
 	}
@@ -1287,7 +1286,7 @@ func DismAddProvisionedAppxPackage(
 		u16Region,
 		stubPackageOption,
 	); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil
@@ -1310,7 +1309,7 @@ func DismRemoveProvisionedAppxPackage(
 		session,
 		u16PkgName,
 	); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil
@@ -1351,7 +1350,7 @@ func DismAddLanguage(
 		progress,
 		userData,
 	); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil
@@ -1380,7 +1379,7 @@ func DismRemoveLanguage(
 		progress,
 		userData,
 	); err != nil {
-		return dismErr(utils.HresultToError(err))
+		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
 	}
 
 	return nil

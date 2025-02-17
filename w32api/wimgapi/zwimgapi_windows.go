@@ -64,7 +64,6 @@ var (
 	procWIMGetMountedImages               = modwimgapi.NewProc("WIMGetMountedImages")
 	procWIMInitFileIOCallbacks            = modwimgapi.NewProc("WIMInitFileIOCallbacks")
 	procWIMLoadImage                      = modwimgapi.NewProc("WIMLoadImage")
-	procWIMMessageCallback                = modwimgapi.NewProc("WIMMessageCallback")
 	procWIMMountImage                     = modwimgapi.NewProc("WIMMountImage")
 	procWIMMountImageHandle               = modwimgapi.NewProc("WIMMountImageHandle")
 	procWIMReadImageFile                  = modwimgapi.NewProc("WIMReadImageFile")
@@ -271,14 +270,6 @@ func WIMLoadImage(wim windows.Handle, imageIndex uint32) (handle windows.Handle,
 	r0, _, e1 := syscall.Syscall(procWIMLoadImage.Addr(), 2, uintptr(wim), uintptr(imageIndex), 0)
 	handle = windows.Handle(r0)
 	if handle == 0 {
-		err = errnoErr(e1)
-	}
-	return
-}
-
-func WIMMessageCallback(messageId uint32, wParam WPARAM, lParam LPARAM, userData unsafe.Pointer) (err error) {
-	r1, _, e1 := syscall.Syscall6(procWIMMessageCallback.Addr(), 4, uintptr(messageId), uintptr(wParam), uintptr(lParam), uintptr(userData), 0, 0)
-	if r1 == 0 {
 		err = errnoErr(e1)
 	}
 	return

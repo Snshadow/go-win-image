@@ -25,6 +25,7 @@ type DismProgressOpts struct {
 	UserData unsafe.Pointer
 }
 
+// DismMountOpts contains options used for DISM image mount.
 type DismMountOpts struct {
 	MountPath string
 	ImageIndex uint32
@@ -33,10 +34,13 @@ type DismMountOpts struct {
 	DismProgressOpts
 }
 
+// DismUnmountOpts contains options used for DISM image unmount.
 type DismUnmountOpts struct {
 	MountPath string
-	// Append or GenerateIntegrity are used it Commit
-	// is true
+	// Append or GenerateIntegrity are ignored if
+	// Commit is false
 	Commit, Append, GenerateIntegrity bool
 	DismProgressOpts
 }
+
+

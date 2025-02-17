@@ -1,5 +1,5 @@
 // Package wimgapi implements Windows Imaging Interface library.
-// 
+//
 // https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/wim/dd851927(v=msdn.10)
 package wimgapi
 
@@ -7,6 +7,8 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/Snshadow/winimg/w32api"
 )
 
 //sys	wimCreateFile(wimPath *uint16, desiredAccess uint32, creationDisposition uint32, flagsAndAttributes uint32, compressionType uint32, creationResult *uint32) (handle windows.Handle, err error) = wimgapi.WIMCreateFile
@@ -27,7 +29,6 @@ import (
 //sys	WIMGetMessageCallbackCount(wim windows.Handle) (count uint32) = wimgapi.WIMGetMessageCallbackCount
 //sys	WIMRegisterMessageCallback(wim windows.Handle, callback uintptr, userData unsafe.Pointer) (index uint32, err error) [failretval==INVALID_CALLBACK_VALUE] = wimgapi.WIMRegisterMessageCallback
 //sys 	WIMUnregisterMessageCallback(wim windows.Handle, callback uintptr) (err error) = wimgapi.WIMUnregisterMessageCallback
-//sys	WIMMessageCallback(messageId uint32, wParam WPARAM, lParam LPARAM, userData unsafe.Pointer) (err error) = wimgapi.WIMMessageCallback
 //sys	wimCopyFile(existingFileName *uint16, newFileName *uint16, progressRoutine uintptr, data unsafe.Pointer, cancel *int32, copyFlags uint32) (err error) = wimgapi.WIMCopyFile
 //sys	wimMountImage(mountPath *uint16, wimFileName *uint16, imageIndex uint32, tempPath *uint16) (err error) = wimgapi.WIMMountImage
 //sys	wimUnmountImage(mountPath *uint16, wimFileName *uint16, imageIndex uint32, commitChanges bool) (err error) = wimgapi.WIMUnmountImage
@@ -84,6 +85,7 @@ func WIMCreateFile(
 		uint32(compressionType),
 		creatRes,
 	); err != nil {
+		err = w32api.WrapInternalErr(err)
 		return
 	}
 
@@ -107,7 +109,7 @@ func WIMSetTemporaryPath(
 		wim,
 		u16Path,
 	); err != nil {
-		return err
+		return w32api.WrapInternalErr(err)
 	}
 
 	return nil
@@ -128,7 +130,7 @@ func WIMSetReferenceFile(
 		u16Path,
 		flags,
 	); err != nil {
-		return err
+		return w32api.WrapInternalErr(err)
 	}
 
 	return nil
@@ -151,7 +153,7 @@ func WIMSplitFile(
 		partSize,
 		flags,
 	); err != nil {
-		return err
+		return w32api.WrapInternalErr(err)
 	}
 
 	return nil
@@ -165,6 +167,7 @@ func WIMGetAttributes(wim windows.Handle) (wimInfo GoWimInfo, err error) {
 		&info,
 		uint32(unsafe.Sizeof(info)),
 	); err != nil {
+		err = w32api.WrapInternalErr(err)
 		return
 	}
 
@@ -183,11 +186,16 @@ func WIMCaptureImage(
 		return 0, err
 	}
 
-	return wimCaptureImage(
+	hnd, err := wimCaptureImage(
 		wim,
 		u16Path,
 		captureFlags,
 	)
+	if err != nil {
+		return 0, w32api.WrapInternalErr(err)
+	}
+
+	return hnd, nil
 }
 
 func WIMApplyImage(
@@ -205,7 +213,7 @@ func WIMApplyImage(
 		u16Path,
 		applyFlags,
 	); err != nil {
-		return err
+		return w32api.WrapInternalErr(err)
 	}
 
 	return nil
@@ -221,7 +229,7 @@ func WIMGetImageInformation(image windows.Handle) ([]byte, error) {
 		&imgInfo,
 		&bufSize,
 	); err != nil {
-		return nil, err
+		return nil, w32api.WrapInternalErr(err)
 	}
 
 	defer windows.LocalFree(windows.Handle(uintptr(imgInfo)))
@@ -245,7 +253,7 @@ func WIMSetImageInformation(
 		infoPtr,
 		infoSize,
 	); err != nil {
-		return err
+		return w32api.WrapInternalErr(err)
 	}
 
 	return nil
@@ -281,7 +289,7 @@ func WIMCopyFile(
 		cancel,
 		copyFlags,
 	); err != nil {
-		return err
+		return w32api.WrapInternalErr(err)
 	}
 
 	return nil
@@ -319,7 +327,7 @@ func WIMMountImage(
 		imageIndex,
 		u16TempPath,
 	); err != nil {
-		return err
+		return w32api.WrapInternalErr(err)
 	}
 
 	return nil
@@ -346,7 +354,7 @@ func WIMUnmountImage(
 		imageIndex,
 		commitChanges,
 	); err != nil {
-		return err
+		return w32api.WrapInternalErr(err)
 	}
 
 	return nil
@@ -362,7 +370,7 @@ func WIMGetMountedImages() ([]GoWimMountList, error) {
 		&listByteSize,
 	)
 	if err != nil && err != windows.ERROR_INSUFFICIENT_BUFFER {
-		return nil, err
+		return nil, w32api.WrapInternalErr(err)
 	}
 
 	listLen = listByteSize / uint32(unsafe.Sizeof(WIM_MOUNT_LIST{}))
@@ -372,7 +380,7 @@ func WIMGetMountedImages() ([]GoWimMountList, error) {
 		&mountList[0],
 		&listByteSize,
 	); err != nil {
-		return nil, err
+		return nil, w32api.WrapInternalErr(err)
 	}
 
 	result := make([]GoWimMountList, listLen)
@@ -391,7 +399,7 @@ func WIMSetFileIOCallbackTemporaryPath(path string) error {
 	}
 
 	if err = wimSetFileIOCallbackTemporaryPath(u16Path); err != nil {
-		return err
+		return w32api.WrapInternalErr(err)
 	}
 
 	return nil
@@ -404,7 +412,7 @@ func WIMMountImageHandle(
 ) error {
 	u16MntPath, err := windows.UTF16PtrFromString(mountPath)
 	if err != nil {
-		return err
+		return w32api.WrapInternalErr(err)
 	}
 
 	if err = wimMountImageHandle(
@@ -432,7 +440,7 @@ func WIMRemountImage(
 		u16MntPath,
 		flags,
 	); err != nil {
-		return err
+		return w32api.WrapInternalErr(err)
 	}
 
 	return nil
@@ -451,11 +459,11 @@ func WIMCommitImageHandle(
 		temp = &newHandle
 	}
 
-	err = wimCommitImageHandle(
+	err = w32api.WrapInternalErr(wimCommitImageHandle(
 		image,
 		commitFlags,
 		temp,
-	)
+	))
 
 	return
 }
@@ -480,7 +488,7 @@ func WIMGetMountedImageInfo[T GoWimMountInfoLevel0 | GoWimMountInfoLevel1]() ([]
 		&returnLength,
 	)
 	if err != nil && err != windows.ERROR_INSUFFICIENT_BUFFER {
-		return nil, err
+		return nil, w32api.WrapInternalErr(err)
 	}
 
 	if infoCount == 0 {
@@ -497,7 +505,7 @@ func WIMGetMountedImageInfo[T GoWimMountInfoLevel0 | GoWimMountInfoLevel1]() ([]
 		&returnLength,
 	)
 	if err != nil {
-		return nil, err
+		return nil, w32api.WrapInternalErr(err)
 	}
 
 	result := make([]T, infoCount)
@@ -540,7 +548,7 @@ func WiMGetMountedImageInfoFromHandle[T GoWimMountInfoLevel0 | GoWimMountInfoLev
 		&returnLength,
 	)
 	if err != nil && err != windows.ERROR_INSUFFICIENT_BUFFER {
-		return nil, err
+		return nil, w32api.WrapInternalErr(err)
 	}
 
 	buf := make([]byte, returnLength)
@@ -552,7 +560,7 @@ func WiMGetMountedImageInfoFromHandle[T GoWimMountInfoLevel0 | GoWimMountInfoLev
 		uint32(len(buf)),
 		&returnLength,
 	); err != nil {
-		return nil, err
+		return nil, w32api.WrapInternalErr(err)
 	}
 
 	infoCount := returnLength / structSize
@@ -585,12 +593,12 @@ func WIMGetMountedImageHandle(
 		return
 	}
 
-	err = wimGetMountedImageHandle(
+	err = w32api.WrapInternalErr(wimGetMountedImageHandle(
 		u16MntPath,
 		flags,
 		&wimhandle,
 		&imageHandle,
-	)
+	))
 
 	return
 }
@@ -608,7 +616,7 @@ func WIMRegisterLogFile(
 		u16LogFile,
 		flags,
 	); err != nil {
-		return err
+		return w32api.WrapInternalErr(err)
 	}
 
 	return nil
@@ -621,7 +629,7 @@ func WIMUnresigisterLogFile(logFile string) error {
 	}
 
 	if err = wimUnregisterLogFile(u16LogFile); err != nil {
-		return err
+		return w32api.WrapInternalErr(err)
 	}
 
 	return nil
@@ -649,7 +657,7 @@ func WIMExtractImagePath(
 		u16DestPath,
 		extractFlags,
 	); err != nil {
-		return err
+		return w32api.WrapInternalErr(err)
 	}
 
 	return nil
@@ -677,7 +685,7 @@ func WIMFindFirstImageFile(
 		&findFileData,
 	)
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, w32api.WrapInternalErr(err)
 	}
 
 	result := &GoWimFindData{}
@@ -690,7 +698,7 @@ func WIMFindNextImageFile(findFile windows.Handle) (*GoWimFindData, error) {
 	var findFileData WIM_FIND_DATA
 
 	if err := wimFindNextImageFile(findFile, &findFileData); err != nil {
-		return nil, err
+		return nil, w32api.WrapInternalErr(err)
 	}
 
 	result := &GoWimFindData{}
@@ -711,13 +719,18 @@ func WIMCreateImageFile(
 		return 0, err
 	}
 
-	return wimCreateImageFile(
+	hnd, err := wimCreateImageFile(
 		image,
 		u16FilePath,
 		desiredAccess,
 		creationDisposition,
 		flagsAndAttributes,
 	)
+	if err != nil {
+		return 0, w32api.WrapInternalErr(err)
+	}
+
+	return hnd, nil
 }
 
 func WIMReadImageFile(
@@ -727,13 +740,13 @@ func WIMReadImageFile(
 ) (int, error) {
 	var bytesRead uint32
 
-	err := wimReadImageFile(
+	err := w32api.WrapInternalErr(wimReadImageFile(
 		imgFile,
 		&buf[0],
 		uint32(len(buf)),
 		&bytesRead,
 		overlapped,
-	)
+	))
 
 	return int(bytesRead), err
 }

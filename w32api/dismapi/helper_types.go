@@ -264,7 +264,9 @@ func (g *GoDismImageInfo) fill(st *DismImageInfo) {
 		}
 	}
 	g.Language = language
-	g.DefaultLanguage = g.Language[st.DefaultLanguageIndex]
+	if st.DefaultLanguageIndex < uint32(len(g.Language)) {
+		g.DefaultLanguage = g.Language[st.DefaultLanguageIndex]
+	}
 	if st.CustomizedInfo != nil {
 		var goSt GoDismWimCustomizedInfo
 		goSt.fill((*DismWimCustomizedInfo)(st.CustomizedInfo))

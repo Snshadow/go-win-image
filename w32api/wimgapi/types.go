@@ -110,7 +110,16 @@ const (
 	WIM_LOGFILE_UTF8 = 0x00000001
 )
 
-// WIMMessageCallback Notifications
+// Application-defined function used with [WIMRegisterMessageCallback] and [WIMUnregisterMessageCallback]
+// convert to uintptr with [windows.NewCallback]
+type WIMMessageCallback func(
+	messageId uint32,
+	wParam WPARAM,
+	lParam LPARAM,
+	userData unsafe.Pointer,
+) /* uint32 */ uintptr
+
+// WIMMessageCallback message ids
 //
 // https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/wim/dd851929(v=msdn.10)
 const (
