@@ -5,6 +5,8 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/Snshadow/winimg/internal/utils"
 )
 
 const (
@@ -116,47 +118,45 @@ func (a Architecture) String() string {
 	return "Architecture(" + strconv.FormatUint(uint64(a), 10) + ")"
 }
 
-// Some common undocumented error values from wimgapi or DISM API
-// functions. Defined for showing error message which would be
-// shown in Dism.exe instead of showing "winapi error #(num)"
-type WinimgInternalErr uint32
-
-// TODO need to add more?
-const (
-	ErrDirNotExist       WinimgInternalErr = 0xc1420114
-	ErrMountDirInUse     WinimgInternalErr = 0xc1420117
-	ErrCommitUnavailable WinimgInternalErr = 0xc142011d
-	ErrAlreadyMounted    WinimgInternalErr = 0xc1420127
-)
-
-func (e WinimgInternalErr) Error() string {
-	switch e {
-	case ErrDirNotExist:
-		return "The user attempted to mount to a directory that does not exist. This is not supported."
-	case ErrMountDirInUse:
-		return "The directory could not be completely unmounted. This is usually due to applications that still have files opened withing the directory. Close these files and unmount again to complete the unmount process."
-	case ErrCommitUnavailable:
-		return "The specified mounted image cannot be committed back into the WIM. This occurs when an image has been through a partial unmount or when an image is still being mounted. If this image was unmounted with commit earlier, then the commit probably succeeded. Please validate that this is the case and then unmount without commit."
-	case ErrAlreadyMounted:
-		return "The specified image in the specified wim is already mounted for read and write access."
-	}
-
-	return ""
+// Get error message from dll or collected string in
+// advance.
+//
+// Defined for showing error message which would be shown
+// in Dism.exe instead of showing "winapi error #(num)"
+type WinimgInternalErr struct {
+	errno  windows.Errno
+	module uintptr
+	str    string
 }
 
-// WrapInternalErr tries to wrap error value if it is a
-// known undocumented error value to show error message.
-func WrapInternalErr(e error) error {
+func (e *WinimgInternalErr) Errno() windows.Errno {
+	return e.errno
+}
+
+func (e *WinimgInternalErr) Error() string {
+	if e.str != "" {
+		return e.str
+	}
+
+	return utils.GetErrorMessage(uint32(e.errno), e.module)
+}
+
+func newInternalErr(e windows.Errno, mod uintptr, s string) *WinimgInternalErr {
+	return &WinimgInternalErr{
+		errno:  e,
+		module: mod,
+		str:    s,
+	}
+}
+
+// WrapInternalErr tries to wrap error value if it was
+// not handled by other error implementation to get error
+// message from module or external function.
+func WrapInternalErr(e error, module uintptr, str string) error {
 	errno, ok := e.(windows.Errno)
 	if !ok {
 		return e
 	}
 
-	lookupErr := WinimgInternalErr(errno)
-
-	if lookupErr.Error() != "" {
-		return lookupErr
-	}
-
-	return e
+	return newInternalErr(errno, module, str)
 }

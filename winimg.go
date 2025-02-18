@@ -8,6 +8,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
+	"github.com/Snshadow/winimg/w32api"
 	"github.com/Snshadow/winimg/w32api/dismapi"
 	"github.com/Snshadow/winimg/w32api/wimgapi"
 	"github.com/deckarep/golang-set/v2"
@@ -16,6 +17,7 @@ import (
 
 var (
 	ErrNotMounted          = errors.New("the path is not a mount path")
+	ErrAlreadyMounted      = errors.New("the image is already mounted")
 	ErrDismSessionNotExist = errors.New("the specified DismSession does not exist")
 )
 
@@ -45,7 +47,8 @@ func initDism() error {
 	if !dismInitialized {
 		err := dismapi.DismInitialize(dismLogLevel, dismLogPath, dismScratchDir)
 		// returns DISMAPI_S_RELOAD_IMAGE_SESSION_REQUIRED if already initialized
-		if err != nil && err != dismapi.DISMAPI_S_RELOAD_IMAGE_SESSION_REQUIRED {
+		if err != nil && err.(*w32api.WinimgInternalErr).Errno() !=
+			dismapi.DISMAPI_S_RELOAD_IMAGE_SESSION_REQUIRED {
 			return err
 		}
 
@@ -57,15 +60,31 @@ func initDism() error {
 
 // DismImageSession handles operations related with DismSession.
 type DismImageSession struct {
-	Session   dismapi.DismSession
-	MountPath string
+	session   dismapi.DismSession
+	mountPath string
 
 	sesMapRef mapset.Set[*DismImageSession]
 }
 
+// GetMountPath returns mount path being currently used.
+func (d *DismImageSession) GetMountPath() string {
+	return d.mountPath
+}
+
+// ApplyUnattend applies unattend answer file to
+// the associated image with current session.
+func (d *DismImageSession) ApplyUnattend(unattendFile string, singleSession bool) error {
+	err := dismapi.DismApplyUnattend(d.session, unattendFile, singleSession)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Close closes opened DismSession for [DismImageSession].
 func (d *DismImageSession) Close() error {
-	if err := dismapi.DismCloseSession(d.Session); err != nil {
+	if err := dismapi.DismCloseSession(d.session); err != nil {
 		return err
 	}
 
@@ -126,7 +145,7 @@ func (d *DismImageFile) Mount(opts DismMountOpts) error {
 	}
 
 	if err := dismapi.DismMountImage(d.imageFilePath, opts.MountPath, opts.ImageIndex, opts.ImageName,
-		identifier, flags, 0, 0, nil); err != nil {
+		identifier, flags, opts.CancelEvent, opts.Progress, opts.UserData); err != nil {
 		return err
 	}
 
@@ -152,7 +171,8 @@ func (d *DismImageFile) Unmount(opts DismUnmountOpts) error {
 		}
 	}
 
-	if err := dismapi.DismUnmountImage(opts.MountPath, flags, 0, 0, nil); err != nil {
+	if err := dismapi.DismUnmountImage(opts.MountPath, flags, opts.CancelEvent,
+		opts.Progress, opts.UserData); err != nil {
 		return err
 	}
 
@@ -162,7 +182,7 @@ func (d *DismImageFile) Unmount(opts DismUnmountOpts) error {
 }
 
 // OpenSession creates DismImageSession from a mount path, if windowsPath or
-// systemDrive are empty, default values will be used.
+// systemDrive are empty, default value will be used.
 func (d *DismImageFile) OpenSession(mountPath, windowsPath, systemDrive string) (*DismImageSession, error) {
 	if !d.MountPoints.ContainsOne(mountPath) {
 		return nil, ErrNotMounted
@@ -174,8 +194,8 @@ func (d *DismImageFile) OpenSession(mountPath, windowsPath, systemDrive string) 
 	}
 
 	newSession := &DismImageSession{
-		Session:   ses,
-		MountPath: mountPath,
+		session:   ses,
+		mountPath: mountPath,
 		sesMapRef: d.Sessions,
 	}
 
@@ -215,7 +235,8 @@ func (d *DismImageFile) Close() error {
 	if dismInitialized && curDismImg.IsEmpty() {
 		// shutdown DISM API if it is no longer used
 		shutdownErr := dismapi.DismShutdown()
-		if shutdownErr != nil && shutdownErr != dismapi.DISMAPI_E_DISMAPI_NOT_INITIALIZED {
+		if shutdownErr != nil && shutdownErr.(*w32api.WinimgInternalErr).Errno() !=
+			dismapi.DISMAPI_E_DISMAPI_NOT_INITIALIZED {
 			err = errors.Join(err, shutdownErr)
 		} else {
 			dismInitialized = false
@@ -247,7 +268,7 @@ func UnregisterWimLog(logFile string) error {
 	return nil
 }
 
-// WimVolumeImage store handle and mount path for
+// WimVolumeImage stores handle and mount path for
 // a volume image in .wim file.
 type WimVolumeImage struct {
 	Handle windows.Handle
@@ -269,11 +290,11 @@ func (w *WimVolumeImage) GetImageInfo() ([]byte, error) {
 // [wimgapi.WIM_FLAG_FILEINFO], [wimgapi.WIM_FLAG_NO_RP_FIX], [wimgapi.WIM_FLAG_NO_DIRACL],
 // [wimgapi.WIM_FLAG_NO_FILEACL]
 func (w *WimVolumeImage) Apply(applyPath string, flags uint32) error {
-	// if !w.wimRef.tempPathSet {
-	// 	if err := w.wimRef.setTempPath(); err != nil {
-	// 		return err
-	// 	}
-	// }
+	if !w.wimRef.tempPathSet {
+		if err := w.wimRef.setTempPath(); err != nil {
+			return err
+		}
+	}
 
 	if err := wimgapi.WIMApplyImage(w.Handle, applyPath, flags); err != nil {
 		return err
@@ -308,6 +329,10 @@ func (w *WimVolumeImage) Export(wim *WimImageFile, flags uint32) error {
 //
 // flags: [wimgapi.WIM_FLAG_MOUNT_READONLY], [wimgapi.WIM_FLAG_VERIFY], [wimgapi.WIM_FLAG_NO_RP_FIX], [wimgapi.WIM_FLAG_NO_DIRACL], [wimgapi.WIM_FLAG_NO_FILEACL]
 func (w *WimVolumeImage) Mount(mountPath string, flags uint32) error {
+	if w.MountPath != "" {
+		return ErrAlreadyMounted
+	}
+
 	if err := wimgapi.WIMMountImageHandle(w.Handle, mountPath, flags); err != nil {
 		return err
 	}

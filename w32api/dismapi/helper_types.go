@@ -331,7 +331,7 @@ type GoDismDriver struct {
 	ManufacturerName    string
 	HardwareDescription string
 	HardwareId          string
-	Architecture        uint32
+	Architecture        w32api.Architecture
 	ServiceName         string
 	CompatibleIds       string
 	ExcludeIds          string
@@ -341,7 +341,7 @@ func (g *GoDismDriver) fill(st *DismDriver) {
 	g.ManufacturerName = windows.UTF16PtrToString(st.ManufacturerName)
 	g.HardwareDescription = windows.UTF16PtrToString(st.HardwareDescription)
 	g.HardwareId = windows.UTF16PtrToString(st.HardwareId)
-	g.Architecture = st.Architecture
+	g.Architecture = w32api.Architecture(st.Architecture)
 	g.ServiceName = windows.UTF16PtrToString(st.ServiceName)
 	g.CompatibleIds = windows.UTF16PtrToString(st.CompatibleIds)
 	g.ExcludeIds = windows.UTF16PtrToString(st.ExcludeIds)
@@ -355,7 +355,7 @@ type GoDismAppxPackage struct {
 	MinorVersion    uint32
 	Build           uint32
 	RevisionNumber  uint32
-	Architecture    uint32
+	Architecture    w32api.Architecture
 	ResourceId      string
 	InstallLocation string
 	Region          string
@@ -369,7 +369,7 @@ func (g *GoDismAppxPackage) fill(st *DismAppxPackage) {
 	g.MinorVersion = st.MinorVersion
 	g.Build = st.Build
 	g.RevisionNumber = st.RevisionNumber
-	g.Architecture = st.Architecture
+	g.Architecture = w32api.Architecture(st.Architecture)
 	g.ResourceId = windows.UTF16PtrToString(st.ResourceId)
 	g.InstallLocation = windows.UTF16PtrToString(st.InstallLocation)
 	g.Region = windows.UTF16PtrToString(st.Region)
@@ -397,7 +397,7 @@ var dismErrMsg = [...]string{
 	"The current package and feature servicing infrastructure is busy.  Wait a bit and try the operation again.",
 }
 
-func getIndex(e DismErr) uint32 {
+func getIndex(e windows.Errno) uint32 {
 	switch {
 	case e == DISMAPI_S_RELOAD_IMAGE_SESSION_REQUIRED:
 		return 0
@@ -418,26 +418,27 @@ func getIndex(e DismErr) uint32 {
 	return 0xffffffff
 }
 
-// implement error to show error message
-func (e DismErr) Error() string {
-	i := getIndex(e)
-
-	if int32(i) == -1 {
-		return "unknown error"
-	}
-
-	return dismErrMsg[i]
-}
-
-func dismErr(e error) error {
+// getErrMsg looks up error message or
+// calls [DismGetLastErrorMessage] for
+// functions it applies to.
+//
+// As it looks like DismGetLastErrormessage() actually
+// returns the same message from GetLastError() without
+// specified language(neutral), try to get it from the
+// array of currently known messages first..
+func getErrMsg(e error) string {
 	errno, ok := e.(windows.Errno)
-	if !ok {
-		return e
+	if ok {
+		index := getIndex(errno)
+		if int32(index) != -1 {
+			return dismErrMsg[index]
+		}
 	}
 
-	if int32(getIndex(DismErr(errno))) != -1 {
-		return DismErr(errno)
+	msg, err := DismGetLastErrorMessage()
+	if err != nil {
+		return ""
 	}
 
-	return e
+	return msg
 }

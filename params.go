@@ -10,10 +10,10 @@ import (
 // cancel or get information while DISM operation
 // is in progress.
 type DismProgressOpts struct {
-	// created with [windows.CreateEvent] and
-	// triggered with [windows.SetEvent]
+	// create with [windows.CreateEvent] and
+	// trigger with [windows.SetEvent]
 	//
-	// call [windows.ResetEvent] to use again 
+	// call [windows.ResetEvent] to use again
 	// for other DISM operation
 	//
 	// close with [windows.CloseHandle]
@@ -28,8 +28,9 @@ type DismProgressOpts struct {
 // DismMountOpts contains options used for DISM image mount.
 type DismMountOpts struct {
 	MountPath string
-	ImageIndex uint32
-	ImageName string
+	// not used if ImageName is not empty
+	ImageIndex                         uint32
+	ImageName                          string
 	ReadOnly, Optimize, CheckIntegrity bool
 	DismProgressOpts
 }
@@ -42,5 +43,3 @@ type DismUnmountOpts struct {
 	Commit, Append, GenerateIntegrity bool
 	DismProgressOpts
 }
-
-

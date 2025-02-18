@@ -99,7 +99,7 @@ func wimCaptureImage(wim windows.Handle, path *uint16, captureFlags uint32) (han
 	return
 }
 
-func WIMCloseHandle(object windows.Handle) (err error) {
+func wimCloseHandle(object windows.Handle) (err error) {
 	r1, _, e1 := syscall.Syscall(procWIMCloseHandle.Addr(), 1, uintptr(object), 0, 0)
 	if r1 == 0 {
 		err = errnoErr(e1)
@@ -141,7 +141,7 @@ func wimCreateImageFile(image windows.Handle, filePath *uint16, desiredAccess ui
 	return
 }
 
-func WIMDeleteImage(wim windows.Handle, imageIndex uint32) (err error) {
+func wimDeleteImage(wim windows.Handle, imageIndex uint32) (err error) {
 	r1, _, e1 := syscall.Syscall(procWIMDeleteImage.Addr(), 2, uintptr(wim), uintptr(imageIndex), 0)
 	if r1 == 0 {
 		err = errnoErr(e1)
@@ -149,7 +149,7 @@ func WIMDeleteImage(wim windows.Handle, imageIndex uint32) (err error) {
 	return
 }
 
-func WIMDeleteImageMounts(deleteFlags uint32) (err error) {
+func wimDeleteImageMounts(deleteFlags uint32) (err error) {
 	r1, _, e1 := syscall.Syscall(procWIMDeleteImageMounts.Addr(), 1, uintptr(deleteFlags), 0, 0)
 	if r1 == 0 {
 		err = errnoErr(e1)
@@ -157,7 +157,7 @@ func WIMDeleteImageMounts(deleteFlags uint32) (err error) {
 	return
 }
 
-func WIMEnumImageFiles(image windows.Handle, enumFile PWIM_ENUM_FILE, enumImageCallback uintptr, enumContext unsafe.Pointer) (err error) {
+func wimEnumImageFiles(image windows.Handle, enumFile PWIM_ENUM_FILE, enumImageCallback uintptr, enumContext unsafe.Pointer) (err error) {
 	r1, _, e1 := syscall.Syscall6(procWIMEnumImageFiles.Addr(), 4, uintptr(image), uintptr(enumFile), uintptr(enumImageCallback), uintptr(enumContext), 0, 0)
 	if r1 == 0 {
 		err = errnoErr(e1)
@@ -165,7 +165,7 @@ func WIMEnumImageFiles(image windows.Handle, enumFile PWIM_ENUM_FILE, enumImageC
 	return
 }
 
-func WIMExportImage(image windows.Handle, wim windows.Handle, flags uint32) (err error) {
+func wimExportImage(image windows.Handle, wim windows.Handle, flags uint32) (err error) {
 	r1, _, e1 := syscall.Syscall(procWIMExportImage.Addr(), 3, uintptr(image), uintptr(wim), uintptr(flags))
 	if r1 == 0 {
 		err = errnoErr(e1)
@@ -206,7 +206,7 @@ func wimGetAttributes(wim windows.Handle, wimInfo *WIM_INFO, cbWimInfo uint32) (
 	return
 }
 
-func WIMGetImageCount(wim windows.Handle) (count uint32) {
+func wimGetImageCount(wim windows.Handle) (count uint32) {
 	r0, _, _ := syscall.Syscall(procWIMGetImageCount.Addr(), 1, uintptr(wim), 0, 0)
 	count = uint32(r0)
 	return
@@ -220,7 +220,7 @@ func wimGetImageInformation(image windows.Handle, imageInfo *unsafe.Pointer, cbI
 	return
 }
 
-func WIMGetMessageCallbackCount(wim windows.Handle) (count uint32) {
+func wimGetMessageCallbackCount(wim windows.Handle) (count uint32) {
 	r0, _, _ := syscall.Syscall(procWIMGetMessageCallbackCount.Addr(), 1, uintptr(wim), 0, 0)
 	count = uint32(r0)
 	return
@@ -258,7 +258,7 @@ func wimGetMountedImages(mountList *WIM_MOUNT_LIST, cbMountListLength *uint32) (
 	return
 }
 
-func WIMInitFileIOCallbacks(callbacks unsafe.Pointer) (err error) {
+func wimInitFileIOCallbacks(callbacks unsafe.Pointer) (err error) {
 	r1, _, e1 := syscall.Syscall(procWIMInitFileIOCallbacks.Addr(), 1, uintptr(callbacks), 0, 0)
 	if r1 == 0 {
 		err = errnoErr(e1)
@@ -266,7 +266,7 @@ func WIMInitFileIOCallbacks(callbacks unsafe.Pointer) (err error) {
 	return
 }
 
-func WIMLoadImage(wim windows.Handle, imageIndex uint32) (handle windows.Handle, err error) {
+func wimLoadImage(wim windows.Handle, imageIndex uint32) (handle windows.Handle, err error) {
 	r0, _, e1 := syscall.Syscall(procWIMLoadImage.Addr(), 2, uintptr(wim), uintptr(imageIndex), 0)
 	handle = windows.Handle(r0)
 	if handle == 0 {
@@ -307,7 +307,7 @@ func wimRegisterLogFile(logFile *uint16, flags uint32) (err error) {
 	return
 }
 
-func WIMRegisterMessageCallback(wim windows.Handle, callback uintptr, userData unsafe.Pointer) (index uint32, err error) {
+func wimRegisterMessageCallback(wim windows.Handle, callback uintptr, userData unsafe.Pointer) (index uint32, err error) {
 	r0, _, e1 := syscall.Syscall(procWIMRegisterMessageCallback.Addr(), 3, uintptr(wim), uintptr(callback), uintptr(userData))
 	index = uint32(r0)
 	if index == INVALID_CALLBACK_VALUE {
@@ -324,7 +324,7 @@ func wimRemountImage(mountPath *uint16, flags uint32) (err error) {
 	return
 }
 
-func WIMSetBootImage(wim windows.Handle, imageIndex uint32) (err error) {
+func wimSetBootImage(wim windows.Handle, imageIndex uint32) (err error) {
 	r1, _, e1 := syscall.Syscall(procWIMSetBootImage.Addr(), 2, uintptr(wim), uintptr(imageIndex), 0)
 	if r1 == 0 {
 		err = errnoErr(e1)
@@ -384,7 +384,7 @@ func wimUnmountImage(mountPath *uint16, wimFileName *uint16, imageIndex uint32, 
 	return
 }
 
-func WIMUnmountImageHandle(image windows.Handle, unmountFlags uint32) (err error) {
+func wimUnmountImageHandle(image windows.Handle, unmountFlags uint32) (err error) {
 	r1, _, e1 := syscall.Syscall(procWIMUnmountImageHandle.Addr(), 2, uintptr(image), uintptr(unmountFlags), 0)
 	if r1 == 0 {
 		err = errnoErr(e1)
@@ -400,7 +400,7 @@ func wimUnregisterLogFile(logFile *uint16) (err error) {
 	return
 }
 
-func WIMUnregisterMessageCallback(wim windows.Handle, callback uintptr) (err error) {
+func wimUnregisterMessageCallback(wim windows.Handle, callback uintptr) (err error) {
 	r1, _, e1 := syscall.Syscall(procWIMUnregisterMessageCallback.Addr(), 2, uintptr(wim), uintptr(callback), 0)
 	if r1 == 0 {
 		err = errnoErr(e1)

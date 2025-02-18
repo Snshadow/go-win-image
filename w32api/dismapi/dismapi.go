@@ -59,6 +59,8 @@ var (
 //sys	dismAddLanguage(session DismSession, languageName *uint16, preventPending bool, limitAccess bool, sourcePaths **uint16, sourcePathCount uint32, cancelEvent windows.Handle, progress uintptr, userData unsafe.Pointer) (ret error) = dismapi.DismAddLanguage
 //sys	dismRemoveLanguage(session DismSession, languageName *uint16, cancelEvent windows.Handle, progress uintptr, userData unsafe.Pointer) (ret error) = dismapi.DismRemoveLanguage
 
+// DismInitialize initializes DISM API. DismInitialize must be called
+// once per process, before calling any other DISM API functions.
 func DismInitialize(
 	logLevel DismLogLevel,
 	logFilePath string,
@@ -84,20 +86,25 @@ func DismInitialize(
 		u16LogFilePath,
 		u16ScratchDir,
 	); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
 }
 
+// DismShutdown shuts down DISM API. DismShutdown must be called once
+// per process. Other DISM API function calls will fail after
+// DismShutdown has been called.
 func DismShutdown() error {
 	if err := dismShutdown(); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
 }
 
+// DismMountImage mounts a WIM or VHD image file to a
+// specified location.
 func DismMountImage(
 	imageFilePath string,
 	mountPath string,
@@ -137,12 +144,14 @@ func DismMountImage(
 		progress,
 		userData,
 	); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
 }
 
+// DismUnmountImage unmounts a Windows image from
+// a specified location.
 func DismUnmountImage(
 	mountPath string,
 	flags uint32,
@@ -162,12 +171,14 @@ func DismUnmountImage(
 		progress,
 		userData,
 	); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
 }
 
+// DismOpenSession associates an offline or online
+// Windows image with a [DismSession].
 func DismOpenSession(
 	imagePath string,
 	windowsDirectory string,
@@ -200,36 +211,50 @@ func DismOpenSession(
 		u16SysDrv,
 		&ses,
 	); err != nil {
-		return 0, w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return 0, w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return ses, nil
 }
 
+// DismCloseSession closes a [DismSession] opened
+// with [DismOpenSession].
 func DismCloseSession(session DismSession) error {
 	if err := dismCloseSession(session); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
 }
 
+// DismGetLastErrorMessage gets the error message in the current
+// thread, immediately after a failure.
+//
+// DismGetLastErrorMessage does not apply to the [DismShutdown] function,
+// [DismDelete] function, or the DismGetLastErrorMessage function.
 func DismGetLastErrorMessage() (string, error) {
 	var errorMsg *DismString
 
 	if err := dismGetLastErrorMessage(&errorMsg); err != nil {
-		return "", w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return "", w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	lastErrMsg := windows.UTF16PtrToString(errorMsg.Value)
-
-	if delErr := DismDelete(unsafe.Pointer(errorMsg)); delErr != nil {
-		return lastErrMsg, errors.Join(ErrDelete, delErr)
+	n := len(lastErrMsg)
+	for ; lastErrMsg[n-1] == '\n' || lastErrMsg[n-1] == '\r'; n-- {
 	}
 
-	return lastErrMsg, nil
+	if delErr := DismDelete(unsafe.Pointer(errorMsg)); delErr != nil {
+		return lastErrMsg[:n], errors.Join(ErrDelete, delErr)
+	}
+
+	return lastErrMsg[:n], nil
 }
 
+// DismRemountImage remounts a previously mounted Windows image
+// from the .wim or .vhd file at the path specified by MountPath.
+// Use [DismOpenSession] to associate the image with a
+// [DismSession] after it is remounted.
 func DismRemountImage(mountPath string) error {
 
 	u16MntPath, err := windows.UTF16PtrFromString(mountPath)
@@ -238,7 +263,7 @@ func DismRemountImage(mountPath string) error {
 	}
 
 	if err = dismRemountImage(u16MntPath); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
@@ -258,7 +283,7 @@ func DismCommitImage(
 		progress,
 		userData,
 	); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
@@ -284,7 +309,7 @@ func DismGetImageInfo(imageFilePath string) (imageInfo []GoDismImageInfo, err er
 		&infoPtr,
 		&count,
 	); err != nil {
-		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		err = w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 		return
 	}
 
@@ -321,7 +346,7 @@ func DismGetMountedImageInfo() (mountedImageInfo []GoDismMountedImageInfo, err e
 		&infoPtr,
 		&count,
 	); err != nil {
-		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		err = w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 		return
 	}
 
@@ -366,7 +391,7 @@ func DismCheckImageHealth(
 		userData,
 		&imageHealth,
 	); err != nil {
-		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		err = w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return
@@ -400,7 +425,7 @@ func DismRestoreImageHealth(
 		progress,
 		userData,
 	); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
@@ -408,7 +433,7 @@ func DismRestoreImageHealth(
 
 func DismDelete(dismStructure unsafe.Pointer) error {
 	if err := dismDelete(dismStructure); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
@@ -437,7 +462,7 @@ func DismAddPackage(
 		progress,
 		userData,
 	); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
@@ -468,7 +493,7 @@ func DismRemovePackage(
 		progress,
 		userData,
 	); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
@@ -522,7 +547,7 @@ func DismEnableFeature(
 		progress,
 		userData,
 	); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
@@ -559,7 +584,7 @@ func DismDisableFeature(
 		progress,
 		userData,
 	); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
@@ -580,7 +605,7 @@ func DismGetPackages(session DismSession) (packages []GoDismPackage, err error) 
 		&pkgPtr,
 		&count,
 	); err != nil {
-		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		err = w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 		return
 	}
 
@@ -626,7 +651,7 @@ func DismGetPackageInfo(
 		packageIdentifier,
 		&pkgInfoPtr,
 	); err != nil {
-		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		err = w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 		return
 	}
 
@@ -665,7 +690,7 @@ func DismGetPackageInfoEx(
 		packageIdentifier,
 		&pkgInfoPtrEx,
 	); err != nil {
-		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		err = w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 		return
 	}
 
@@ -706,7 +731,7 @@ func DismGetFeatures(
 		&featPtr,
 		&count,
 	); err != nil {
-		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		err = w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 
 		return
 	}
@@ -762,7 +787,7 @@ func DismGetFeatureInfo(
 		packageIdentifier,
 		&featInfoPtr,
 	); err != nil {
-		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		err = w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	if featInfoPtr != nil {
@@ -809,7 +834,7 @@ func DismGetFeatureParent(
 		&featPtr,
 		&count,
 	); err != nil {
-		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		err = w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 		return
 	}
 
@@ -845,7 +870,7 @@ func DismApplyUnattend(
 		u16unattend,
 		singleSession,
 	); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
@@ -866,7 +891,7 @@ func DismAddDriver(
 		u16DrvPath,
 		forceUnsigned,
 	); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
@@ -885,7 +910,7 @@ func DismRemoveDriver(
 		session,
 		u16DrvPath,
 	); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
@@ -910,7 +935,7 @@ func DismGetDrivers(
 		&drvPkgPtr,
 		&count,
 	); err != nil {
-		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		err = w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 		return
 	}
 
@@ -974,7 +999,7 @@ func DismGetDriverInfo(
 		&count,
 		packageParam,
 	); err != nil {
-		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		err = w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 		return
 	}
 
@@ -1019,7 +1044,7 @@ func DismGetCapabilities(session DismSession) (capability []GoDismCapability, er
 		&capPtr,
 		&count,
 	); err != nil {
-		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		err = w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 
 		return
 	}
@@ -1065,7 +1090,7 @@ func DismGetCapabilityInfo(
 		u16Name,
 		&infoPtr,
 	); err != nil {
-		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		err = w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 
 		return
 	}
@@ -1113,7 +1138,7 @@ func DismAddCapability(
 		progress,
 		userData,
 	); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
@@ -1138,7 +1163,7 @@ func DismRemoveCapability(
 		progress,
 		userData,
 	); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
@@ -1149,7 +1174,7 @@ func DismGetReservedStorageState(session DismSession) (state uint32, err error) 
 		session,
 		&state,
 	); err != nil {
-		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		err = w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return
@@ -1163,7 +1188,7 @@ func DismSetReservedStorageState(
 		session,
 		state,
 	); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
@@ -1184,7 +1209,7 @@ func DismGetProvisionedAppxPackages(session DismSession) (appxPackage []GoDismAp
 		&pkgPtr,
 		&count,
 	); err != nil {
-		err = w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		err = w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 
 		return
 	}
@@ -1286,7 +1311,7 @@ func DismAddProvisionedAppxPackage(
 		u16Region,
 		stubPackageOption,
 	); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
@@ -1309,7 +1334,7 @@ func DismRemoveProvisionedAppxPackage(
 		session,
 		u16PkgName,
 	); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
@@ -1350,7 +1375,7 @@ func DismAddLanguage(
 		progress,
 		userData,
 	); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
@@ -1379,7 +1404,7 @@ func DismRemoveLanguage(
 		progress,
 		userData,
 	); err != nil {
-		return w32api.WrapInternalErr(dismErr(utils.HresultToError(err)))
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
 
 	return nil
