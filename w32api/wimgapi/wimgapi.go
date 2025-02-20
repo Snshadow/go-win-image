@@ -52,6 +52,8 @@ import (
 //sys	wimCreateImageFile(image windows.Handle, filePath *uint16, desiredAccess uint32, creationDisposition uint32, flagsAndAttributes uint32) (handle windows.Handle, err error) = wimgapi.WIMCreateImageFile
 //sys	wimReadImageFile(imgFile windows.Handle, buffer *byte, bytesToRead uint32, bytesRead *uint32, overlapped *windows.Overlapped) (err error) = wimgapi.WIMReadImageFile
 
+// WIMCreateFile makes a new image file or opens an existing image file.
+//
 // The createdNew value is set if getCreationResult is true, otherwise it
 // is always false. Close handle with [WIMCloseHandle] after use.
 func WIMCreateFile(
@@ -96,6 +98,8 @@ func WIMCreateFile(
 	return
 }
 
+// WIMCloseHandle closes an open Windows imaging (.wim) file
+// or image handle.
 func WIMCloseHandle(object windows.Handle) error {
 	if err := wimCloseHandle(object); err != nil {
 		return w32api.WrapInternalErr(err, modwimgapi.Handle(), "")
@@ -104,6 +108,8 @@ func WIMCloseHandle(object windows.Handle) error {
 	return nil
 }
 
+// WIMSetTemporaryPath sets the location where temporary
+// imaging files are to be stored.
 func WIMSetTemporaryPath(
 	wim windows.Handle,
 	path string,
@@ -123,6 +129,10 @@ func WIMSetTemporaryPath(
 	return nil
 }
 
+// WIMSetReferenceFile enables the [WIMApplyImage] and [WIMCaptureImage]
+// functions to use alternate .wim files for file resources. This can
+// enable optimization of storage when multiple images are captured with
+// similar data.
 func WIMSetReferenceFile(
 	wim windows.Handle,
 	path string,
@@ -144,6 +154,9 @@ func WIMSetReferenceFile(
 	return nil
 }
 
+// WIMSplitFile enables a large Windows image (.wim) file
+// to be split into smaller parts for replication or storage
+// on smaller forms of media.
 func WIMSplitFile(
 	wim windows.Handle,
 	partPath string,
@@ -167,6 +180,8 @@ func WIMSplitFile(
 	return nil
 }
 
+// WIMExportImage transfers the data of an image from one
+// Windows image (.wim) file to another.
 func WIMExportImage(
 	image windows.Handle,
 	wim windows.Handle,
@@ -183,6 +198,9 @@ func WIMExportImage(
 	return nil
 }
 
+// WIMDeleteImage removes an image from within a .wim (Windows image) file
+// so it cannot be accessed. However, the file resources are still available
+// for use by the [WIMSetReferenceFile] function.
 func WIMDeleteImage(
 	wim windows.Handle,
 	imageIndex uint32,
@@ -197,10 +215,14 @@ func WIMDeleteImage(
 	return nil
 }
 
+// WIMGetImageCount returns the number of volume images
+// stored in a Windows image (.wim) file.
 func WIMGetImageCount(wim windows.Handle) uint32 {
 	return wimGetImageCount(wim)
 }
 
+// WIMGetAttributes gets attribute of a Windows image (.wim)
+// file as [GoWimInfo].
 func WIMGetAttributes(wim windows.Handle) (wimInfo GoWimInfo, err error) {
 	var info WIM_INFO
 
@@ -218,6 +240,8 @@ func WIMGetAttributes(wim windows.Handle) (wimInfo GoWimInfo, err error) {
 	return
 }
 
+// WIMSetBootImage marks the image with the given image
+// index as bootable.
 func WIMSetBootImage(
 	wim windows.Handle,
 	imageIndex uint32,
@@ -232,6 +256,8 @@ func WIMSetBootImage(
 	return nil
 }
 
+// WIMCaptureImage captures an image from a directory path
+// and stores it in an image file.
 func WIMCaptureImage(
 	wim windows.Handle,
 	path string,
@@ -254,6 +280,7 @@ func WIMCaptureImage(
 	return hnd, nil
 }
 
+// WIMLoadImage loads a volume image from a Windows image (.wim) file.
 func WIMLoadImage(
 	wim windows.Handle,
 	imageIndex uint32,
@@ -269,6 +296,8 @@ func WIMLoadImage(
 	return hnd, nil
 }
 
+// WIMApplyImage applies an image to a directory path from
+// a Windows image (.wim) file.
 func WIMApplyImage(
 	image windows.Handle,
 	path string,
@@ -290,7 +319,8 @@ func WIMApplyImage(
 	return nil
 }
 
-// returns byte slice with XML information about the volume image
+// WIMGetImageInformation returns information about an image within
+// the .wim (Windows image) file as byte slice.
 func WIMGetImageInformation(image windows.Handle) ([]byte, error) {
 	var imgInfo unsafe.Pointer
 	var bufSize uint32
@@ -311,7 +341,8 @@ func WIMGetImageInformation(image windows.Handle) ([]byte, error) {
 	return buf, nil
 }
 
-// store information about an image with imageInfo
+// WIMSetImageInformation stores information about an image in the
+// Windows image (.wim) file.
 func WIMSetImageInformation(
 	image windows.Handle,
 	imageInfo []byte,
@@ -330,10 +361,15 @@ func WIMSetImageInformation(
 	return nil
 }
 
+// WIMGetMessageCallbackCount returns the count of callback routines
+// currently registered by the imaging library.
 func WIMGetMessageCallbackCount(wim windows.Handle) uint32 {
 	return wimGetMessageCallbackCount(wim)
 }
 
+// WIMRegisterMessageCallback registers a function to be called with
+// imaging-specific data. For information about the messages that
+// can be handled, see WIMMessageCallback message ids.
 func WIMRegisterMessageCallback(
 	wim windows.Handle,
 	callback uintptr,
@@ -351,6 +387,8 @@ func WIMRegisterMessageCallback(
 	return index, nil
 }
 
+// WIMUnregisterMessageCallback unregisters a function from
+// being called with imaging-specific data.
 func WIMUnregisterMessageCallback(
 	wim windows.Handle,
 	callback uintptr,
@@ -365,10 +403,15 @@ func WIMUnregisterMessageCallback(
 	return nil
 }
 
-// pass uintptr returned from [windows.NewCallback] with
+// WIMCopyFile copies an existing file to a new file. Notifies
+// the application of its progress through a callback function.
+// If the source file has verification data, the contents of the
+// file are verified during the copy operation.
+//
+// Pass uintptr returned from [windows.NewCallback] with
 // [wintype.LPPROGRESS_ROUTINE] for progressRoutine(optional)
 //
-// set *cancel to 1(TRUE) to cancel copy operation
+// Set *cancel to 1(TRUE) to cancel copy operation
 func WIMCopyFile(
 	existingFileName string,
 	newFileName string,
@@ -401,8 +444,11 @@ func WIMCopyFile(
 	return nil
 }
 
-// if tempPath if empty, the image will not be mounted
-// for edits
+// WIMMountImage mounts an image in a Windows image (.wim) file
+// to the specified directory.
+//
+// If tempPath is an empty string, the image will not be mounted
+// for edits.
 func WIMMountImage(
 	mountPath string,
 	wimFileName string,
@@ -439,6 +485,8 @@ func WIMMountImage(
 	return nil
 }
 
+// WIMUnmountImage unmounts a mounted image in a Windows
+// image (.wim) file from the specified directory.
 func WIMUnmountImage(
 	mountPath string,
 	wimFileName string,
@@ -466,6 +514,8 @@ func WIMUnmountImage(
 	return nil
 }
 
+// WIMGetMountedImages returns a list of [GoWimMountList].
+// This function has been superseded by [WIMGetMountedImageInfo].
 func WIMGetMountedImages() ([]GoWimMountList, error) {
 	var listByteSize, listLen uint32
 	var mountList []WIM_MOUNT_LIST
@@ -498,6 +548,7 @@ func WIMGetMountedImages() ([]GoWimMountList, error) {
 	return result, nil
 }
 
+// WIMInitFileIOCallbacks initializes io callbacks.
 func WIMInitFileIOCallbacks(callbacks unsafe.Pointer) error {
 	if err := wimInitFileIOCallbacks(callbacks); err != nil {
 		return w32api.WrapInternalErr(err, modwimgapi.Handle(), "")
@@ -506,6 +557,8 @@ func WIMInitFileIOCallbacks(callbacks unsafe.Pointer) error {
 	return nil
 }
 
+// WIMSetFileIOCallbackTemporaryPath sets temporary path
+// to be used for callbacks.
 func WIMSetFileIOCallbackTemporaryPath(path string) error {
 	u16Path, err := windows.UTF16PtrFromString(path)
 	if err != nil {
@@ -519,6 +572,8 @@ func WIMSetFileIOCallbackTemporaryPath(path string) error {
 	return nil
 }
 
+// WIMMountImageHandle mounts an image in a Windows image (.wim) file
+// to the specified directory.
 func WIMMountImageHandle(
 	image windows.Handle,
 	mountPath string,
@@ -540,6 +595,8 @@ func WIMMountImageHandle(
 	return nil
 }
 
+// WIMUnmountImageHandle unmounts an image from a Windows image (.wim) that
+// was previously mounted with the [WIMMountImageHandle] function.
 func WIMUnmountImageHandle(
 	image windows.Handle,
 	unmountFlags uint32,
@@ -554,7 +611,10 @@ func WIMUnmountImageHandle(
 	return nil
 }
 
-// flags must be 0
+// WIMRemountImage reactivates a mounted image that was
+// previously mounted to the specified directory.
+//
+// flags is reserved and must be 0.
 func WIMRemountImage(
 	mountPath string,
 	flags uint32,
@@ -574,9 +634,12 @@ func WIMRemountImage(
 	return nil
 }
 
-// if WIM_COMMIT_FLAG_APPEND is specified in commitFlags and
+// WIMCommitImageHandle saves the changes from a mounted image
+// back to the.wim file.
+//
+// If [WIM_COMMIT_FLAG_APPEND] is specified in commitFlags and
 // openNewHandle is set to true, the value of newHandle is
-// set, otherwise it is always 0
+// set, otherwise it is always 0.
 func WIMCommitImageHandle(
 	image windows.Handle,
 	commitFlags uint32,
@@ -599,6 +662,9 @@ func WIMCommitImageHandle(
 	return
 }
 
+// WIMGetMountedImageInfo returns a list of images that
+// are currently mounted as an array of [GoWimMountInfoLevel0]
+// or [GoWimMountInfoLevel1].
 func WIMGetMountedImageInfo[T GoWimMountInfoLevel0 | GoWimMountInfoLevel1]() ([]T, error) {
 	var infoLevel MOUNTED_IMAGE_INFO_LEVELS
 	var infoCount, returnLength uint32
@@ -655,20 +721,22 @@ func WIMGetMountedImageInfo[T GoWimMountInfoLevel0 | GoWimMountInfoLevel1]() ([]
 	return result, nil
 }
 
-func WiMGetMountedImageInfoFromHandle[T GoWimMountInfoLevel0 | GoWimMountInfoLevel1](
+// WIMGetMountedImageInforFromHandle queries the state
+// of a mounted image handle.
+func WIMGetMountedImageInfoFromHandle[T GoWimMountInfoLevel0 | GoWimMountInfoLevel1](
 	image windows.Handle,
-) ([]T, error) {
+) (T, error) {
 	var infoLevel MOUNTED_IMAGE_INFO_LEVELS
-	var returnLength, structSize uint32
+	var returnLength uint32
 
 	switch any((*T)(nil)).(type) {
 	case *GoWimMountInfoLevel0:
 		infoLevel = MountedImageLevel0
-		structSize = uint32(unsafe.Sizeof(WIM_MOUNT_INFO_LEVEL0{}))
 	case *GoWimMountInfoLevel1:
 		infoLevel = MountedImageLevel1
-		structSize = uint32(unsafe.Sizeof(WIM_MOUNT_INFO_LEVEL1{}))
 	}
+
+	var result T
 
 	// get required buffer size
 	err := wimGetMountedImageInfoFromHandle(
@@ -679,7 +747,7 @@ func WiMGetMountedImageInfoFromHandle[T GoWimMountInfoLevel0 | GoWimMountInfoLev
 		&returnLength,
 	)
 	if err != nil && err != windows.ERROR_INSUFFICIENT_BUFFER {
-		return nil, w32api.WrapInternalErr(err, modwimgapi.Handle(), "")
+		return result, w32api.WrapInternalErr(err, modwimgapi.Handle(), "")
 	}
 
 	buf := make([]byte, returnLength)
@@ -691,26 +759,21 @@ func WiMGetMountedImageInfoFromHandle[T GoWimMountInfoLevel0 | GoWimMountInfoLev
 		uint32(len(buf)),
 		&returnLength,
 	); err != nil {
-		return nil, w32api.WrapInternalErr(err, modwimgapi.Handle(), "")
+		return result, w32api.WrapInternalErr(err, modwimgapi.Handle(), "")
 	}
-
-	infoCount := returnLength / structSize
-	result := make([]T, infoCount)
 
 	switch infoLevel {
 	case MountedImageLevel0:
-		for i, info := range unsafe.Slice((*WIM_MOUNT_INFO_LEVEL0)(unsafe.Pointer(&buf[0])), infoCount) {
-			any(&result[i]).(*GoWimMountInfoLevel0).fill(&info)
-		}
+		any(&result).(*GoWimMountInfoLevel0).fill((*WIM_MOUNT_INFO_LEVEL0)(unsafe.Pointer(&buf[0])))
 	case MountedImageLevel1:
-		for i, info := range unsafe.Slice((*WIM_MOUNT_INFO_LEVEL1)(unsafe.Pointer(&buf[0])), infoCount) {
-			any(&result[i]).(*GoWimMountInfoLevel1).fill(&info)
-		}
+		any(&result).(*GoWimMountInfoLevel1).fill((*WIM_MOUNT_INFO_LEVEL1)(unsafe.Pointer(&buf[0])))
 	}
 
 	return result, nil
 }
 
+// WIMGetMountedImageHandle returns a WIM handle and an image handle
+// corresponding to a mounted image directory.
 func WIMGetMountedImageHandle(
 	mountPath string,
 	flags uint32,
@@ -737,6 +800,8 @@ func WIMGetMountedImageHandle(
 	return
 }
 
+// WIMDeleteImageMounts removes images from all directories
+// where they have been previously mounted.
 func WIMDeleteImageMounts(deleteFlags uint32) error {
 	if err := wimDeleteImageMounts(deleteFlags); err != nil {
 		return w32api.WrapInternalErr(err, modwimgapi.Handle(), "")
@@ -745,6 +810,8 @@ func WIMDeleteImageMounts(deleteFlags uint32) error {
 	return nil
 }
 
+// WIMRegisterLogFile registers a log file for debugging
+// or tracing purposes into the current WIMGAPI session.
 func WIMRegisterLogFile(
 	logFile string,
 	flags uint32,
@@ -764,7 +831,9 @@ func WIMRegisterLogFile(
 	return nil
 }
 
-func WIMUnresigisterLogFile(logFile string) error {
+// WIMUnregisterLogFile unregisters a log file for debugging
+// or tracing purposes from the current WIMGAPI session.
+func WIMUnregisterLogFile(logFile string) error {
 	u16LogFile, err := windows.UTF16PtrFromString(logFile)
 	if err != nil {
 		return err
@@ -777,6 +846,8 @@ func WIMUnresigisterLogFile(logFile string) error {
 	return nil
 }
 
+// WIMExtractImagePath extracts a file from within a
+// Windows image (.wim) file to a specified location.
 func WIMExtractImagePath(
 	image windows.Handle,
 	imagePath string,
@@ -805,7 +876,10 @@ func WIMExtractImagePath(
 	return nil
 }
 
-// TODO check [WIM_FIND_DATA].AlternativeStreamNames allocation release.
+// WIMFindFirstImageFile returns information of a file
+// within a Windows image (.wim) file as [GoWimFindData],
+// and a handle that can be used to walk through files in
+// an image using [WIMFindNextImageFile].
 func WIMFindFirstImageFile(
 	image windows.Handle,
 	filePath string,
@@ -836,6 +910,8 @@ func WIMFindFirstImageFile(
 	return findHandle, result, nil
 }
 
+// WIMFindNextImageFile walks to next file within an Windows
+// image (.wim) file using handle from [WIMFindFirstImageFile].
 func WIMFindNextImageFile(findFile windows.Handle) (*GoWimFindData, error) {
 	var findFileData WIM_FIND_DATA
 
@@ -849,6 +925,8 @@ func WIMFindNextImageFile(findFile windows.Handle) (*GoWimFindData, error) {
 	return result, nil
 }
 
+// WIMEnumImageFile enumerates files within a Windows image (.wim)
+// file.
 func WIMEnumImageFiles(
 	image windows.Handle,
 	enumFile PWIM_ENUM_FILE,

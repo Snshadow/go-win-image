@@ -418,14 +418,15 @@ func getIndex(e windows.Errno) uint32 {
 	return 0xffffffff
 }
 
-// getErrMsg looks up error message or
-// calls [DismGetLastErrorMessage] for
-// functions it applies to.
+// getErrMsg looks up for error message
+// or calls [DismGetLastErrorMessage]
+// for functions it applies to.
 //
 // As it looks like DismGetLastErrormessage() actually
-// returns the same message from GetLastError() without
-// specified language(neutral), try to get it from the
-// array of currently known messages first..
+// returns the same message from GetLastError +
+// FormatMessage without specified language(neutral),
+// try to get it from the array of currently known
+// messages first..
 func getErrMsg(e error) string {
 	errno, ok := e.(windows.Errno)
 	if ok {

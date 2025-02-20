@@ -241,7 +241,7 @@ func DismGetLastErrorMessage() (string, error) {
 
 	lastErrMsg := windows.UTF16PtrToString(errorMsg.Value)
 	n := len(lastErrMsg)
-	for ; lastErrMsg[n-1] == '\n' || lastErrMsg[n-1] == '\r'; n-- {
+	for ; n > 0 && lastErrMsg[n-1] == '\n' || lastErrMsg[n-1] == '\r'; n-- {
 	}
 
 	if delErr := DismDelete(unsafe.Pointer(errorMsg)); delErr != nil {
@@ -269,6 +269,9 @@ func DismRemountImage(mountPath string) error {
 	return nil
 }
 
+// DismCommitImage commit the changes made to a Windows image
+// in a mounted .wim or .vhd file. The image must be mounted
+// using the [DismMountImage].
 func DismCommitImage(
 	session DismSession,
 	flags uint32,
@@ -289,6 +292,9 @@ func DismCommitImage(
 	return nil
 }
 
+// DismGetImageInfo returns an array of [GoDismImageInfo]
+// structures that describe the images in a .wim or
+// .vhd file.
 func DismGetImageInfo(imageFilePath string) (imageInfo []GoDismImageInfo, err error) {
 	u16ImgFilePath, err := windows.UTF16PtrFromString(imageFilePath)
 	if err != nil {
@@ -332,6 +338,9 @@ func DismGetImageInfo(imageFilePath string) (imageInfo []GoDismImageInfo, err er
 	return
 }
 
+// DismMountedImageinfo returns an array of
+// [GoDismMountedImageInfo] structures describing
+// currently mounted images.
 func DismGetMountedImageInfo() (mountedImageInfo []GoDismMountedImageInfo, err error) {
 	var infoPtr *DismMountedImageInfo
 	var count uint32
@@ -369,10 +378,20 @@ func DismGetMountedImageInfo() (mountedImageInfo []GoDismMountedImageInfo, err e
 	return
 }
 
+// DismCleanupMountpoints removes files and releases
+// resources associated with corrupted or invalid
+// mount paths.
 func DismCleanupMountpoints() error {
-	return utils.HresultToError(dismCleanupMountpoints())
+	err := dismCleanupMountpoints()
+	if err != nil {
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
+	}
+
+	return nil
 }
 
+// DismCheckImageHealth checks whether the image
+// can be serviced or is corrupted.
 func DismCheckImageHealth(
 	session DismSession,
 	scanImage bool,
@@ -397,6 +416,9 @@ func DismCheckImageHealth(
 	return
 }
 
+// DismRestoreImagehealth Repairs a corrupted
+// image that has been identified as repairable
+// by [DismCheckImageHealth].
 func DismRestoreImageHealth(
 	session DismSession,
 	sourcePaths []string,
@@ -431,6 +453,9 @@ func DismRestoreImageHealth(
 	return nil
 }
 
+// DismDelete releases resources held by a structure
+// or an array of structures returned by other DISM
+// API Functions.
 func DismDelete(dismStructure unsafe.Pointer) error {
 	if err := dismDelete(dismStructure); err != nil {
 		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
@@ -439,6 +464,8 @@ func DismDelete(dismStructure unsafe.Pointer) error {
 	return nil
 }
 
+// DismAddPackage adds a single .cab or .msu file
+// to a Windows image.
 func DismAddPackage(
 	session DismSession,
 	packagePath string,
@@ -468,6 +495,7 @@ func DismAddPackage(
 	return nil
 }
 
+// DismRemovePackage removes a package from an image.
 func DismRemovePackage(
 	session DismSession,
 	identifer string,
@@ -499,6 +527,9 @@ func DismRemovePackage(
 	return nil
 }
 
+// DismEnableFeature enables a feature in an image.
+// Features are identified by a name and can optionally
+// be tied to a package.
 func DismEnableFeature(
 	session DismSession,
 	featureName string,
@@ -553,6 +584,7 @@ func DismEnableFeature(
 	return nil
 }
 
+// DismDisableFeature disables a feature in the current image.
 func DismDisableFeature(
 	session DismSession,
 	featureName string,
@@ -590,6 +622,8 @@ func DismDisableFeature(
 	return nil
 }
 
+// DismGetPackages gets array of [GoDismPackage]
+// from an image.
 func DismGetPackages(session DismSession) (packages []GoDismPackage, err error) {
 	var pkgPtr *DismPackage
 	var count uint32
@@ -627,6 +661,8 @@ func DismGetPackages(session DismSession) (packages []GoDismPackage, err error) 
 	return
 }
 
+// DismGetPackageInfo gets standard package properties
+// as [GoDismPackageInfo].
 func DismGetPackageInfo(
 	session DismSession,
 	identifier string,
@@ -666,6 +702,8 @@ func DismGetPackageInfo(
 	return
 }
 
+// DismGetPackageInfoEx gets standard packages properties as
+// [DismGetPackageInfo] and CapabilityId in [GoDismPackageInfoEx].
 func DismGetPackageInfoEx(
 	session DismSession,
 	identifier string,
@@ -705,6 +743,9 @@ func DismGetPackageInfoEx(
 	return
 }
 
+// DismGetFeatures gets all the features in an image as an
+// array of [GoDismFeature] regardless of whether the features
+// are enabled or disabled.
 func DismGetFeatures(
 	session DismSession,
 	identifier string,
@@ -755,6 +796,8 @@ func DismGetFeatures(
 	return
 }
 
+// DismGetFeatureInfo gets detailed info for the
+// specified feature as [GoDismFeatureInfo].
 func DismGetFeatureInfo(
 	session DismSession,
 	featureName string,
@@ -800,6 +843,8 @@ func DismGetFeatureInfo(
 	return
 }
 
+// DismGetFeatureParent gets the parent features
+// of a specified feature as [GoDismFeature].
 func DismGetFeatureParent(
 	session DismSession,
 	featureName string,
@@ -855,6 +900,8 @@ func DismGetFeatureParent(
 	return
 }
 
+// DismApplyUnattend applies an unattended
+// answer file to a Windows image.
 func DismApplyUnattend(
 	session DismSession,
 	unattendFile string,
@@ -876,6 +923,8 @@ func DismApplyUnattend(
 	return nil
 }
 
+// DismAddDriver adds a third party driver (.inf)
+// to an offline Windows image.
 func DismAddDriver(
 	session DismSession,
 	driverPath string,
@@ -897,6 +946,8 @@ func DismAddDriver(
 	return nil
 }
 
+// DismRemoveDriver removes a third party driver (.inf)
+// in an offline Windows image.
 func DismRemoveDriver(
 	session DismSession,
 	driverPath string,
@@ -916,6 +967,8 @@ func DismRemoveDriver(
 	return nil
 }
 
+// DismGetDriver lists the drivers in an image
+// as an array of [GoDismDriverPackage].
 func DismGetDrivers(
 	session DismSession,
 	allDrivers bool,
@@ -958,6 +1011,9 @@ func DismGetDrivers(
 	return
 }
 
+// DismGetDriverInfo gets information about an .inf file
+// in a specified image as an array of [GoDismDriver] and
+// [GoDismDriverPackage].
 func DismGetDriverInfo(
 	session DismSession,
 	driverPath string,
@@ -1029,6 +1085,8 @@ func DismGetDriverInfo(
 	return
 }
 
+// DismGetCapabilties gets DISM capabilities as an array
+// of [GoDismCapability].
 func DismGetCapabilities(session DismSession) (capability []GoDismCapability, err error) {
 	var capPtr *DismCapability
 	var count uint32
@@ -1068,6 +1126,8 @@ func DismGetCapabilities(session DismSession) (capability []GoDismCapability, er
 	return
 }
 
+// DismGetCapabilityInfo gets information of
+// DISM capability as [GoDismCapabilityInfo].
 func DismGetCapabilityInfo(
 	session DismSession,
 	name string,
@@ -1104,6 +1164,7 @@ func DismGetCapabilityInfo(
 	return
 }
 
+// DismAddCapability adds a capability to an image.
 func DismAddCapability(
 	session DismSession,
 	name string,
@@ -1144,6 +1205,8 @@ func DismAddCapability(
 	return nil
 }
 
+// DismRemoveCapability removes a capability
+// from an image.
 func DismRemoveCapability(
 	session DismSession,
 	name string,
@@ -1169,6 +1232,8 @@ func DismRemoveCapability(
 	return nil
 }
 
+// DismGetReservedStorageState gets state of
+// reserved storage from an image.
 func DismGetReservedStorageState(session DismSession) (state uint32, err error) {
 	if err = dismGetReservedStorageState(
 		session,
@@ -1180,6 +1245,8 @@ func DismGetReservedStorageState(session DismSession) (state uint32, err error) 
 	return
 }
 
+// DismSetReservedStorageState sets state of
+// reserved storage to an image.
 func DismSetReservedStorageState(
 	session DismSession,
 	state uint32,
@@ -1194,6 +1261,9 @@ func DismSetReservedStorageState(
 	return nil
 }
 
+// DismGetProvisionedAppxPackage gets provisioned
+// appx packages from an image as an array of
+// [GoDismAppxPackage].
 func DismGetProvisionedAppxPackages(session DismSession) (appxPackage []GoDismAppxPackage, err error) {
 	var pkgPtr *DismAppxPackage
 	var count uint32
@@ -1233,6 +1303,8 @@ func DismGetProvisionedAppxPackages(session DismSession) (appxPackage []GoDismAp
 	return
 }
 
+// DismAddProvisionedAppxPackage adds provisioned
+// appx package to an image.
 func DismAddProvisionedAppxPackage(
 	session DismSession,
 	appPath string,
@@ -1317,6 +1389,8 @@ func DismAddProvisionedAppxPackage(
 	return nil
 }
 
+// DismRemoveProvisionedAppxPackage removes provisioned
+// appx package from an image.
 func DismRemoveProvisionedAppxPackage(
 	session DismSession,
 	packageName string,
@@ -1340,6 +1414,7 @@ func DismRemoveProvisionedAppxPackage(
 	return nil
 }
 
+// DismAddLanguage adds language to an image.
 func DismAddLanguage(
 	session DismSession,
 	languageName string,
@@ -1381,6 +1456,7 @@ func DismAddLanguage(
 	return nil
 }
 
+// DismRemoveLanguage removes language from an image.
 func DismRemoveLanguage(
 	session DismSession,
 	languageName string,

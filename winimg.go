@@ -260,7 +260,7 @@ func RegisterWimLog(logFile string, flags uint32) error {
 // UnregisterWimLog unregisters logfile for logging
 // wimgapi operations used in [RegisterWimLog].
 func UnregisterWimLog(logFile string) error {
-	err := wimgapi.WIMUnresigisterLogFile(logFile)
+	err := wimgapi.WIMUnregisterLogFile(logFile)
 	if err != nil {
 		return err
 	}

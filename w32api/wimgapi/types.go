@@ -241,7 +241,7 @@ type WIM_FIND_DATA struct {
 	Hash               [20]byte
 	SecurityDescriptor *windows.SECURITY_DESCRIPTOR
 	// double-null terminated, read from *AlternateStreamNames with [windows.UTF16ToString] & [unsafe.Add]
-	AlternateStreamNames  **uint16
+	AlternateStreamNames  **uint16 // TODO check allocation release.
 	PbReparseData         *byte
 	CbReparseData         uint32
 	ResourceSize          uint64 // ULARGE_INTEGER
