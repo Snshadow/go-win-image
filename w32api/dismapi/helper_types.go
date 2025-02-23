@@ -47,6 +47,17 @@ func (g *GoDismFeature) fill(st *DismFeature) {
 	g.State = st.State
 }
 
+type GoDismFeatureEx struct {
+	GoDismFeature
+	CustromPropertyInXML string
+}
+
+func (g *GoDismFeatureEx) fill(st *DismFeatureEx) {
+	g.FeatureName = windows.UTF16PtrToString(st.FeatureName)
+	g.State = st.State
+	g.CustromPropertyInXML = windows.UTF16PtrToString(st.CustromPropertyInXML)
+}
+
 type GoDismCapability struct {
 	Name  string
 	State DismPackageFeatureState

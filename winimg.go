@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"golang.org/x/sys/windows"
 
@@ -58,6 +59,25 @@ func initDism() error {
 	return nil
 }
 
+// GetDismMountedImages returns information of mounted images as
+// an array of [dismapi.GoDismMountedImageInfo].
+func GetDismMountedImages() ([]dismapi.GoDismMountedImageInfo, error) {
+	return dismapi.DismGetMountedImageInfo()
+}
+
+// CleanupDismMountPoints calls [dismapi.DismCleanupMountPoints].
+func CleanupDismMountPoints() error {
+	return dismapi.DismCleanupMountPoints()
+}
+
+// RemountDismImage calls [dismapi.DismRemountImage].
+//
+// Call [DismImageFile].OpenSession with mountPath after
+// it is remounted.
+func RemountDismImage(mountPath string) error {
+	return dismapi.DismRemountImage(mountPath)
+}
+
 // DismImageSession handles operations related with DismSession.
 type DismImageSession struct {
 	session   dismapi.DismSession
@@ -80,6 +100,183 @@ func (d *DismImageSession) ApplyUnattend(unattendFile string, singleSession bool
 	}
 
 	return nil
+}
+
+// GetCapabilties gets capabilites from an image.
+func (d *DismImageSession) GetCapabilities() ([]dismapi.GoDismCapability, error) {
+	return dismapi.DismGetCapabilities(d.session)
+}
+
+// GetDrivers gets drivers in an image.
+func (d *DismImageSession) GetDrivers(allDrivers bool) ([]dismapi.GoDismDriverPackage, error) {
+	return dismapi.DismGetDrivers(d.session, allDrivers)
+}
+
+// GetFeatures gets feature in an image, regardless of
+// whether the features are enabled or disabled.
+//
+// If optionally specified, identifier can be an absolute
+// path to a .cab file or the package name.
+func (d *DismImageSession) GetFeatures(identifier string) ([]dismapi.GoDismFeature, error) {
+	pkgIdentifier := dismapi.DismPackageNone
+	if identifier != "" {
+		if strings.HasSuffix(strings.ToLower(identifier), ".cab") {
+			pkgIdentifier = dismapi.DismPackagePath
+		} else {
+			pkgIdentifier = dismapi.DismPackageName
+		}
+	}
+
+	return dismapi.DismGetFeatures(d.session, identifier, pkgIdentifier)
+}
+
+// GetPackages gets packages in an image.
+func (d *DismImageSession) GetPackages() ([]dismapi.GoDismPackage, error) {
+	return dismapi.DismGetPackages(d.session)
+}
+
+// CheckImageHealth checks whether the image can be serviced
+// or corrupted, with or without scanning(to get previous status)
+// the image.
+func (d *DismImageSession) CheckImageHealth(scanImage bool, opts DismProgressOpts) (dismapi.DismImageHealthState, error) {
+	return dismapi.DismCheckImageHealth(
+		d.session,
+		scanImage,
+		opts.CancelEvent,
+		opts.Progress,
+		opts.UserData,
+	)
+}
+
+// AddDriver adds a third party driver (.inf) to an image.
+func (d *DismImageSession) AddDriver(driverPath string, forceUnsigned bool) error {
+	return dismapi.DismAddDriver(d.session, driverPath, forceUnsigned)
+}
+
+// AddPackage adds a package file(.cab, .msu, .mum) to an image.
+func (d *DismImageSession) AddPackage(opts DismAddPackageOpts) error {
+	return dismapi.DismAddPackage(
+		d.session,
+		opts.PackagePath,
+		opts.IgnoreCheck,
+		opts.PreventPending,
+		opts.CancelEvent,
+		opts.Progress,
+		opts.UserData,
+	)
+}
+
+// DisableFeature disables a feature in an image.
+func (d *DismImageSession) DisableFeature(opts DismDisableFeatureOpts) error {
+	return dismapi.DismDisableFeature(
+		d.session,
+		opts.FeatureName,
+		opts.PackageName,
+		opts.RemovePayload,
+		opts.CancelEvent,
+		opts.Progress,
+		opts.UserData,
+	)
+}
+
+// EnableFeature enables a feature in an image.
+func (d *DismImageSession) EnableFeature(opts DismEnableFeatureOpts) error {
+	pkgIdentifier := dismapi.DismPackageNone
+	if opts.Identifier != "" {
+		if strings.HasSuffix(strings.ToLower(opts.Identifier), ".cab") {
+			pkgIdentifier = dismapi.DismPackagePath
+		} else {
+			pkgIdentifier = dismapi.DismPackageName
+		}
+	}
+
+	return dismapi.DismEnableFeature(
+		d.session,
+		opts.FeatureName,
+		opts.Identifier,
+		pkgIdentifier,
+		opts.LimitAccess,
+		opts.SourcePaths,
+		opts.EnableAll,
+		opts.CancelEvent,
+		opts.Progress,
+		opts.UserData,
+	)
+}
+
+// RemoveCapability removes a capability in an image.
+func (d *DismImageSession) RemoveCapability(name string, opts DismProgressOpts) error {
+	return dismapi.DismRemoveCapability(
+		d.session,
+		name,
+		opts.CancelEvent,
+		opts.Progress,
+		opts.UserData,
+	)
+}
+
+// RemoveDriver removes an out-of-box(installed) driver from
+// an image with .inf file path.
+func (d *DismImageSession) RemoveDriver(driverPath string) error {
+	return dismapi.DismRemoveDriver(d.session, driverPath)
+}
+
+// RemovePackage removes a package from an image.
+//
+// identifier can be an absolute path to a .cab file or package name.
+func (d *DismImageSession) RemovePackage(identifier string, opts DismProgressOpts) error {
+	pkgIdentifier := dismapi.DismPackageNone
+	if identifier != "" {
+		if strings.HasSuffix(strings.ToLower(identifier), ".cab") {
+			pkgIdentifier = dismapi.DismPackagePath
+		} else {
+			pkgIdentifier = dismapi.DismPackageName
+		}
+	}
+
+	return dismapi.DismRemovePackage(
+		d.session,
+		identifier,
+		pkgIdentifier,
+		opts.CancelEvent,
+		opts.Progress,
+		opts.UserData,
+	)
+}
+
+// RestoreImageHealth repairs an image which has been
+// identified as repairable of CheckImageHealth.
+func (d *DismImageSession) RestoreImageHealth(opts DismRestoreImageHealthOpts) error {
+	return dismapi.DismRestoreImageHealth(
+		d.session,
+		opts.SourcePaths,
+		opts.LimitAccess,
+		opts.CancelEvent,
+		opts.Progress,
+		opts.UserData,
+	)
+}
+
+// CommitImage commits changes from mount point to an image.
+func (d *DismImageSession) CommitImage(opts DismCommitOpts) error {
+	var flags uint32
+	if opts.Append {
+		flags |= dismapi.DISM_COMMIT_APPEND
+	}
+	if opts.GenerateIntegrity {
+		flags |= dismapi.DISM_COMMIT_GENERATE_INTEGRITY
+	}
+	if opts.SupportEa {
+		flags |= dismapi.DISM_COMMIT_SUPPORT_EA
+	}
+
+	return dismapi.DismCommitImage(
+		d.session,
+		flags,
+		opts.CancelEvent,
+		opts.Progress,
+		opts.UserData,
+	)
 }
 
 // Close closes opened DismSession for [DismImageSession].
@@ -105,7 +302,7 @@ type DismImageFile struct {
 }
 
 // NewDismImageFile creates structure for using DISM API, it
-// runs [dismapi.DismInitialize] if api is not initialized.
+// runs [dismapi.DismInitialize] if DISM API is not initialized.
 func NewDismImageFile(imageFilePath string) (*DismImageFile, error) {
 	if err := initDism(); err != nil {
 		return nil, err
@@ -168,6 +365,9 @@ func (d *DismImageFile) Unmount(opts DismUnmountOpts) error {
 		}
 		if opts.GenerateIntegrity {
 			flags |= dismapi.DISM_COMMIT_GENERATE_INTEGRITY
+		}
+		if opts.SupportEa {
+			flags |= dismapi.DISM_COMMIT_SUPPORT_EA
 		}
 	}
 
@@ -543,7 +743,6 @@ func (w *WimImageFile) Close() error {
 
 // MountWimImage mounts an image with mount path, .wim file path and image
 // index, is tempPath is empty, the image will not be mounted for edits.
-// Cannot be used if [WimImageFile] exists for this .wim file.
 func MountWimImage(mountPath, imageFilePath string, imageIndex uint32, tempPath string) error {
 	err := wimgapi.WIMMountImage(mountPath, imageFilePath, imageIndex, tempPath)
 	if err != nil {
@@ -555,7 +754,7 @@ func MountWimImage(mountPath, imageFilePath string, imageIndex uint32, tempPath 
 
 // UnmountWimImage unmounts an image with mountPath and imageIndex, if
 // commitChanges is true, changes in mounted directory will be saved to
-// .wim file if tempPath was specified in [MountWimImage].
+// .wim file only if tempPath was specified in [MountWimImage].
 func UnmountWimImage(mountPath, imageFilePath string, imageIndex uint32, commitChanges bool) error {
 	err := wimgapi.WIMUnmountImage(mountPath, imageFilePath, imageIndex, commitChanges)
 	if err != nil {

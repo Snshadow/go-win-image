@@ -8,9 +8,6 @@ import (
 	"github.com/Snshadow/winimg/w32api"
 )
 
-type LPARAM w32api.LONG_PTR
-type WPARAM w32api.ULONG_PTR
-
 // WIMCreateFile
 const (
 	WIM_GENERIC_READ  = windows.GENERIC_READ
@@ -114,8 +111,8 @@ const (
 // convert to uintptr with [windows.NewCallback]
 type WIMMessageCallback func(
 	messageId uint32,
-	wParam WPARAM,
-	lParam LPARAM,
+	wParam unsafe.Pointer, // UINT_PTR
+	lParam unsafe.Pointer, // LONG_PTR
 	userData unsafe.Pointer,
 ) /* uint32 */ uintptr
 

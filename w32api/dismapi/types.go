@@ -1,4 +1,4 @@
-//go:generate go run github.com/Snshadow/mkpackstruct $GOFILE
+//go:generate go run github.com/Snshadow/mkpackstruct -parsed $GOFILE $GOFILE
 
 package dismapi
 
@@ -44,16 +44,31 @@ const (
 
 // Dism constants
 const (
-	DISM_SESSION_DEFAULT           = 0
-	DISM_MOUNT_READWRITE           = 0x00000000
-	DISM_MOUNT_READONLY            = 0x00000001
-	DISM_MOUNT_OPTIMIZE            = 0x00000002
-	DISM_MOUNT_CHECK_INTEGRITY     = 0x00000004
-	DISM_COMMIT_IMAGE              = 0x00000000
-	DISM_DISCARD_IMAGE             = 0x00000001
+	DISM_SESSION_DEFAULT = 0
+
+	DISM_MOUNT_READWRITE       = 0x00000000
+	DISM_MOUNT_READONLY        = 0x00000001
+	DISM_MOUNT_OPTIMIZE        = 0x00000002
+	DISM_MOUNT_CHECK_INTEGRITY = 0x00000004
+	DISM_MOUNT_SUPPORT_EA      = 0x00000008
+
+	DISM_COMMIT_IMAGE  = 0x00000000
+	DISM_DISCARD_IMAGE = 0x00000001
+
+	DISM_OPTIMIZE_IMAGE_WIMBOOT = 0x00000001
+	DISM_OPTIMIZE_IMAGE_BOOT    = 0x00000002
+
 	DISM_COMMIT_GENERATE_INTEGRITY = 0x00010000
 	DISM_COMMIT_APPEND             = 0x00020000
+	DISM_COMMIT_SUPPORT_EA         = 0x00040000
 	DISM_COMMIT_MASK               = 0xffff0000
+
+	DISM_CLEANUP_FLAG_COMPONENT_RESET_BASE_DEFAULT = 0x00000001
+	DISM_CLEANUP_FLAG_COMPONENT_RESET_BASE_DEFER   = 0x00000002
+
+	DISM_GET_FEATURES_DEFAULT = 0x00000000
+	DISM_GET_FEATURES_USER    = 0x00000001
+	DISM_GET_FEATURES_SYSTEM  = 0x00000002
 
 	DISM_RESERVED_STORAGE_DISABLED = 0x00000000
 	DISM_RESERVED_STORAGE_ENABLED  = 0x00000001
@@ -174,6 +189,15 @@ const (
 	DismDriverSignatureSigned
 )
 
+type DismCleanupType uint32
+
+const (
+	DismCleanupTypeNone          DismCleanupType = 0
+	DismCleanupTypeWindowsUpdate DismCleanupType = 1 << (iota - 1)
+	DismCleanupTypeServicePack
+	DismCleanupTypeComponent
+)
+
 type DismFullyOfflineInstallableType uint32
 
 const (
@@ -208,6 +232,11 @@ type DismCustomProperty struct {
 type DismFeature struct {
 	FeatureName *uint16
 	State       DismPackageFeatureState
+}
+
+type DismFeatureEx struct {
+	DismFeature
+	CustromPropertyInXML *uint16
 }
 
 type DismCapability struct {

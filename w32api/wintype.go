@@ -29,9 +29,6 @@ type WIN32_FIND_DATAW struct {
 	FinderFlags       uint16 // Deprecated: Obsolete. Do not use
 }
 
-type LONG_PTR int
-type ULONG_PTR uintptr
-
 // value of callbackReason from [LPPROGRESS_ROUTINE]
 const (
 	CALLBACK_CHUNK_FINISHED = 0x0

@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/xml"
 	"errors"
-	"strconv"
+	"fmt"
 	"unicode/utf16"
 )
 
@@ -45,8 +45,8 @@ type _filetime struct {
 
 func (f Filetime) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	ff := _filetime{
-		HighPart: "0x" + strconv.FormatUint(uint64(f.HighPart), 16),
-		LowPart:  "0x" + strconv.FormatUint(uint64(f.LowPart), 16),
+		HighPart: fmt.Sprintf("0x%08X", f.HighPart),
+		LowPart:  fmt.Sprintf("0x%08X", f.LowPart),
 	}
 
 	return e.EncodeElement(ff, start)
@@ -59,12 +59,13 @@ func (f *Filetime) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 		return err
 	}
 
-	tempHigh, err := strconv.ParseUint(ff.HighPart, 0, 32)
+	var tempHigh, tempLow uint32
+	_, err = fmt.Sscanf(ff.HighPart, "0x%08X", &tempHigh)
 	if err != nil {
 		return err
 	}
 	f.HighPart = uint32(tempHigh)
-	tempLow, err := strconv.ParseUint(ff.LowPart, 0, 32)
+	_, err = fmt.Sscanf(ff.LowPart, "0x%08X", &tempLow)
 	if err != nil {
 		return err
 	}

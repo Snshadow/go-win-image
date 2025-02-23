@@ -47,7 +47,7 @@ var (
 	procDismAddProvisionedAppxPackage    = moddismapi.NewProc("DismAddProvisionedAppxPackage")
 	procDismApplyUnattend                = moddismapi.NewProc("DismApplyUnattend")
 	procDismCheckImageHealth             = moddismapi.NewProc("DismCheckImageHealth")
-	procDismCleanupMountpoints           = moddismapi.NewProc("DismCleanupMountpoints")
+	procDismCleanupMountPoints           = moddismapi.NewProc("DismCleanupMountPoints")
 	procDismCloseSession                 = moddismapi.NewProc("DismCloseSession")
 	procDismCommitImage                  = moddismapi.NewProc("DismCommitImage")
 	procDismDelete                       = moddismapi.NewProc("DismDelete")
@@ -81,6 +81,8 @@ var (
 	procDismSetReservedStorageState      = moddismapi.NewProc("DismSetReservedStorageState")
 	procDismShutdown                     = moddismapi.NewProc("DismShutdown")
 	procDismUnmountImage                 = moddismapi.NewProc("DismUnmountImage")
+	proc_DismCleanImage                  = moddismapi.NewProc("_DismCleanImage")
+	proc_DismGetFeaturesEx               = moddismapi.NewProc("_DismGetFeaturesEx")
 )
 
 func dismAddCapability(session DismSession, name *uint16, limitAccess bool, sourcePaths **uint16, sourcePathCount uint32, cancelEvent windows.Handle, progress uintptr, UserData unsafe.Pointer) (ret error) {
@@ -175,8 +177,8 @@ func dismCheckImageHealth(session DismSession, scanImage bool, cancelEvent windo
 	return
 }
 
-func dismCleanupMountpoints() (ret error) {
-	r0, _, _ := syscall.Syscall(procDismCleanupMountpoints.Addr(), 0, 0, 0, 0)
+func dismCleanupMountPoints() (ret error) {
+	r0, _, _ := syscall.Syscall(procDismCleanupMountPoints.Addr(), 0, 0, 0, 0)
 	if r0 != 0 {
 		ret = syscall.Errno(r0)
 	}
@@ -461,6 +463,22 @@ func dismShutdown() (ret error) {
 
 func dismUnmountImage(mountPath *uint16, flags uint32, cancelEvent windows.Handle, progress uintptr, userData unsafe.Pointer) (ret error) {
 	r0, _, _ := syscall.Syscall6(procDismUnmountImage.Addr(), 5, uintptr(unsafe.Pointer(mountPath)), uintptr(flags), uintptr(cancelEvent), uintptr(progress), uintptr(userData), 0)
+	if r0 != 0 {
+		ret = syscall.Errno(r0)
+	}
+	return
+}
+
+func dismCleanImage(session DismSession, cleanupType DismCleanupType, flags uint32, cancelEvent windows.Handle, progress uintptr, userData unsafe.Pointer) (ret error) {
+	r0, _, _ := syscall.Syscall6(proc_DismCleanImage.Addr(), 6, uintptr(session), uintptr(cleanupType), uintptr(flags), uintptr(cancelEvent), uintptr(progress), uintptr(userData))
+	if r0 != 0 {
+		ret = syscall.Errno(r0)
+	}
+	return
+}
+
+func dismGetFeaturesEx(session DismSession, identifier *uint16, packageIdentifier DismPackageIdentifier, flags uint32, feature **DismFeatureEx, count *uint32) (ret error) {
+	r0, _, _ := syscall.Syscall6(proc_DismGetFeaturesEx.Addr(), 6, uintptr(session), uintptr(unsafe.Pointer(identifier)), uintptr(packageIdentifier), uintptr(flags), uintptr(unsafe.Pointer(feature)), uintptr(unsafe.Pointer(count)))
 	if r0 != 0 {
 		ret = syscall.Errno(r0)
 	}

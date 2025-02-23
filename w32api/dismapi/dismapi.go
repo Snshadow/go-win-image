@@ -28,7 +28,7 @@ var (
 //sys	dismCommitImage(session DismSession, flags uint32, cancelEvent windows.Handle, progress uintptr, userData unsafe.Pointer) (ret error) = dismapi.DismCommitImage
 //sys	dismGetImageInfo(imageFilePath *uint16, imageInfo **DismImageInfo, count *uint32) (ret error) = dismapi.DismGetImageInfo
 //sys	dismGetMountedImageInfo(mountedImageInfo **DismMountedImageInfo, count *uint32) (ret error) = dismapi.DismGetMountedImageInfo
-//sys	dismCleanupMountpoints() (ret error) = dismapi.DismCleanupMountpoints
+//sys	dismCleanupMountPoints() (ret error) = dismapi.DismCleanupMountPoints
 //sys	dismCheckImageHealth(session DismSession, scanImage bool, cancelEvent windows.Handle, progress uintptr, userData unsafe.Pointer, imageHealth *DismImageHealthState) (ret error) = dismapi.DismCheckImageHealth
 //sys	dismRestoreImageHealth(session DismSession, sourcePaths **uint16, sourcePathCount uint32, limitAccess bool, cancelEvent windows.Handle, progress uintptr, userData unsafe.Pointer) (ret error) = dismapi.DismRestoreImageHealth
 //sys	dismDelete(dismStructure unsafe.Pointer) (ret error) = dismapi.DismDelete
@@ -40,6 +40,7 @@ var (
 //sys	dismGetPackageInfo(session DismSession, identifier *uint16, packageIdentifier DismPackageIdentifier, packageInfo **DismPackageInfo) (ret error) = dismapi.DismGetPackageInfo
 //sys	dismGetPackageInfoEx(session DismSession, identifier *uint16, packageIdentifier DismPackageIdentifier, packageInfoEx **DismPackageInfoEx) (ret error) = dismapi.DismGetPackageInfoEx
 //sys	dismGetFeatures(session DismSession, identifier *uint16, packageIdentifier DismPackageIdentifier, feature **DismFeature, count *uint32) (ret error) = dismapi.DismGetFeatures
+//sys	dismGetFeaturesEx(session DismSession, identifier *uint16, packageIdentifier DismPackageIdentifier, flags uint32, feature **DismFeatureEx, count *uint32) (ret error) = dismapi._DismGetFeaturesEx
 //sys	dismGetFeatureInfo(session DismSession, featureName *uint16, identifier *uint16, packageIdentifier DismPackageIdentifier, featureInfo **DismFeatureInfo) (ret error) = dismapi.DismGetFeatureInfo
 //sys	dismGetFeatureParent(session DismSession, featureName *uint16, identifier *uint16, packageIdentifier DismPackageIdentifier, feature **DismFeature, count *uint32) (ret error) = dismapi.DismGetFeatureParent
 //sys	dismApplyUnattend(session DismSession, unattendFile *uint16, singleSession bool) (ret error) = dismapi.DismApplyUnattend
@@ -51,6 +52,7 @@ var (
 //sys	dismGetCapabilityInfo(session DismSession, name *uint16, info **DismCapabilityInfo) (ret error) = dismapi.DismGetCapabilityInfo
 //sys	dismAddCapability(session DismSession, name *uint16, limitAccess bool, sourcePaths **uint16, sourcePathCount uint32, cancelEvent windows.Handle, progress uintptr, UserData unsafe.Pointer) (ret error) = dismapi.DismAddCapability
 //sys	dismRemoveCapability(session DismSession, name *uint16, cancelEvent windows.Handle, progress uintptr, userData unsafe.Pointer) (ret error) = dismapi.DismRemoveCapability
+//sys	dismCleanImage(session DismSession, cleanupType DismCleanupType, flags uint32, cancelEvent windows.Handle, progress uintptr, userData unsafe.Pointer) (ret error) = dismapi._DismCleanImage
 //sys	dismGetReservedStorageState(session DismSession, state *uint32) (ret error) = dismapi.DismGetReservedStorageState
 //sys	dismSetReservedStorageState(session DismSession, state uint32) (ret error) = dismapi.DismSetReservedStorageState
 //sys	dismGetProvisionedAppxPackages(session DismSession, pPackage **DismAppxPackage, count *uint32) (ret error) = dismapi.DismGetProvisionedAppxPackages
@@ -378,11 +380,11 @@ func DismGetMountedImageInfo() (mountedImageInfo []GoDismMountedImageInfo, err e
 	return
 }
 
-// DismCleanupMountpoints removes files and releases
+// DismCleanupMountPoints removes files and releases
 // resources associated with corrupted or invalid
 // mount paths.
-func DismCleanupMountpoints() error {
-	err := dismCleanupMountpoints()
+func DismCleanupMountPoints() error {
+	err := dismCleanupMountPoints()
 	if err != nil {
 		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
 	}
@@ -622,7 +624,7 @@ func DismDisableFeature(
 	return nil
 }
 
-// DismGetPackages gets array of [GoDismPackage]
+// DismGetPackages gets an array of [GoDismPackage]
 // from an image.
 func DismGetPackages(session DismSession) (packages []GoDismPackage, err error) {
 	var pkgPtr *DismPackage
@@ -785,6 +787,61 @@ func DismGetFeatures(
 			unpacked, _ := ToStruct[DismFeature](unsafe.Slice(stPtr, bufSize))
 
 			var goSt GoDismFeature
+			goSt.fill(&unpacked)
+
+			feature = append(feature, goSt)
+
+			stPtr = (*byte)(unsafe.Add(unsafe.Pointer(stPtr), bufSize))
+		}
+	}
+
+	return
+}
+
+// DismGetFeatures gets all the features in an image as an array
+// of [GoDismFeatureEx] regardless of whether the features are
+// enabled or disabled.
+func DismGetFeaturesEx(
+	session DismSession,
+	identifier string,
+	packageIdentifier DismPackageIdentifier,
+	flags uint32,
+) (feature []GoDismFeatureEx, err error) {
+	u16Id, err := windows.UTF16PtrFromString(identifier)
+	if err != nil {
+		return
+	}
+
+	var featExPtr *DismFeatureEx
+	var count uint32
+
+	defer func() {
+		if delErr := DismDelete(unsafe.Pointer(featExPtr)); delErr != nil {
+			err = errors.Join(err, ErrDelete, delErr)
+		}
+	}()
+
+	if err = dismGetFeaturesEx(
+		session,
+		u16Id,
+		packageIdentifier,
+		flags,
+		&featExPtr,
+		&count,
+	); err != nil {
+		err = w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
+
+		return
+	}
+
+	if featExPtr != nil && count != 0 {
+		bufSize := GetPackedSize(*featExPtr)
+		stPtr := (*byte)(unsafe.Pointer(featExPtr))
+
+		for i := uint32(0); i < count; i++ {
+			unpacked, _ := ToStruct[DismFeatureEx](unsafe.Slice(stPtr, bufSize))
+
+			var goSt GoDismFeatureEx
 			goSt.fill(&unpacked)
 
 			feature = append(feature, goSt)
@@ -1030,7 +1087,7 @@ func DismGetDriverInfo(
 
 	var packageParam **DismDriverPackage // optional
 	if getPackage {
-		packagePtr := &DismDriverPackage{}
+		var packagePtr *DismDriverPackage
 		packageParam = &packagePtr
 	}
 
@@ -1205,8 +1262,7 @@ func DismAddCapability(
 	return nil
 }
 
-// DismRemoveCapability removes a capability
-// from an image.
+// DismRemoveCapability removes a capability from an image.
 func DismRemoveCapability(
 	session DismSession,
 	name string,
@@ -1222,6 +1278,29 @@ func DismRemoveCapability(
 	if err = dismRemoveCapability(
 		session,
 		u16Name,
+		cancelEvent,
+		progress,
+		userData,
+	); err != nil {
+		return w32api.WrapInternalErr(utils.HresultToError(err), moddismapi.Handle(), getErrMsg(err))
+	}
+
+	return nil
+}
+
+// DismCleanImage cleans up superseded elements in an image.
+func DismCleanImage(
+	session DismSession,
+	cleanupType DismCleanupType,
+	flags uint32,
+	cancelEvent windows.Handle,
+	progress uintptr,
+	userData unsafe.Pointer,
+) error {
+	if err := dismCleanImage(
+		session,
+		cleanupType,
+		flags,
 		cancelEvent,
 		progress,
 		userData,

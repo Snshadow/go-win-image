@@ -40,7 +40,7 @@ func GetErrorMessage(errno uint32, module uintptr) string {
 	b := &buf[0]
 	n, err := formatMessage(flags, module, errno, 0, b, uint32(len(buf)), nil)
 	if err == nil {
-		for ; buf[n-1] == '\n' || buf[n-1] == '\r'; n-- {
+		for ; n > 0 && buf[n-1] == '\n' || buf[n-1] == '\r'; n-- {
 		}
 		return windows.UTF16ToString(buf[:n])
 	} else if err != windows.ERROR_INSUFFICIENT_BUFFER {
@@ -55,7 +55,7 @@ func GetErrorMessage(errno uint32, module uintptr) string {
 
 	defer windows.LocalFree(windows.Handle(uintptr(unsafe.Pointer(b))))
 
-	for ; buf[n-1] == '\n' || buf[n-1] == '\r'; n-- {
+	for ; n > 0 && buf[n-1] == '\n' || buf[n-1] == '\r'; n-- {
 	}
 	return windows.UTF16ToString(unsafe.Slice(b, n))
 }
