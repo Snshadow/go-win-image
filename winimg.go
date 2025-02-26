@@ -108,6 +108,10 @@ func (d *DismImageSession) GetCapabilities() ([]dismapi.GoDismCapability, error)
 }
 
 // GetDrivers gets drivers in an image.
+//
+// If allDrivers is true, it gets all drivers including
+// drivers from the image itself, otherwise only get
+// drivers not from the image.
 func (d *DismImageSession) GetDrivers(allDrivers bool) ([]dismapi.GoDismDriverPackage, error) {
 	return dismapi.DismGetDrivers(d.session, allDrivers)
 }
@@ -115,7 +119,7 @@ func (d *DismImageSession) GetDrivers(allDrivers bool) ([]dismapi.GoDismDriverPa
 // GetFeatures gets feature in an image, regardless of
 // whether the features are enabled or disabled.
 //
-// If optionally specified, identifier can be an absolute
+// An optional parameter identifier can be an absolute
 // path to a .cab file or the package name.
 func (d *DismImageSession) GetFeatures(identifier string) ([]dismapi.GoDismFeature, error) {
 	pkgIdentifier := dismapi.DismPackageNone
@@ -138,13 +142,36 @@ func (d *DismImageSession) GetPackages() ([]dismapi.GoDismPackage, error) {
 // CheckImageHealth checks whether the image can be serviced
 // or corrupted, with or without scanning(to get previous status)
 // the image.
-func (d *DismImageSession) CheckImageHealth(scanImage bool, opts DismProgressOpts) (dismapi.DismImageHealthState, error) {
+func (d *DismImageSession) CheckImageHealth(scanImage bool, opts *DismProgressOpts) (dismapi.DismImageHealthState, error) {
+	var o DismProgressOpts
+	if opts != nil {
+		o = *opts
+	}
+
 	return dismapi.DismCheckImageHealth(
 		d.session,
 		scanImage,
-		opts.CancelEvent,
-		opts.Progress,
-		opts.UserData,
+		o.CancelEvent,
+		o.Progress,
+		o.UserData,
+	)
+}
+
+// AddCapability adds a capability to an image.
+func (d *DismImageSession) AddCapability(name string, opts *DismAddCapabilityOpts) error {
+	var o DismAddCapabilityOpts
+	if opts != nil {
+		o = *opts
+	}
+
+	return dismapi.DismAddCapability(
+		d.session,
+		name,
+		o.LimitAccess,
+		o.SourcePaths,
+		o.CancelEvent,
+		o.Progress,
+		o.UserData,
 	)
 }
 
@@ -154,36 +181,53 @@ func (d *DismImageSession) AddDriver(driverPath string, forceUnsigned bool) erro
 }
 
 // AddPackage adds a package file(.cab, .msu, .mum) to an image.
-func (d *DismImageSession) AddPackage(opts DismAddPackageOpts) error {
+func (d *DismImageSession) AddPackage(packagePath string, opts *DismAddPackageOpts) error {
+	var o DismAddPackageOpts
+	if opts != nil {
+		o = *opts
+	}
+
 	return dismapi.DismAddPackage(
 		d.session,
-		opts.PackagePath,
-		opts.IgnoreCheck,
-		opts.PreventPending,
-		opts.CancelEvent,
-		opts.Progress,
-		opts.UserData,
+		packagePath,
+		o.IgnoreCheck,
+		o.PreventPending,
+		o.CancelEvent,
+		o.Progress,
+		o.UserData,
 	)
 }
 
 // DisableFeature disables a feature in an image.
-func (d *DismImageSession) DisableFeature(opts DismDisableFeatureOpts) error {
+func (d *DismImageSession) DisableFeature(featureName string, opts *DismDisableFeatureOpts) error {
+	var o DismDisableFeatureOpts
+	if opts != nil {
+		o = *opts
+	}
+
 	return dismapi.DismDisableFeature(
 		d.session,
-		opts.FeatureName,
-		opts.PackageName,
-		opts.RemovePayload,
-		opts.CancelEvent,
-		opts.Progress,
-		opts.UserData,
+		featureName,
+		o.PackageName,
+		o.RemovePayload,
+		o.CancelEvent,
+		o.Progress,
+		o.UserData,
 	)
 }
 
-// EnableFeature enables a feature in an image.
-func (d *DismImageSession) EnableFeature(opts DismEnableFeatureOpts) error {
+// EnableFeature enables a feature in an image,
+// featureName can have multiple features, separated
+// with semicolons.
+func (d *DismImageSession) EnableFeature(featureName string, opts *DismEnableFeatureOpts) error {
+	var o DismEnableFeatureOpts
+	if opts != nil {
+		o = *opts
+	}
+
 	pkgIdentifier := dismapi.DismPackageNone
-	if opts.Identifier != "" {
-		if strings.HasSuffix(strings.ToLower(opts.Identifier), ".cab") {
+	if o.Identifier != "" {
+		if strings.HasSuffix(strings.ToLower(o.Identifier), ".cab") {
 			pkgIdentifier = dismapi.DismPackagePath
 		} else {
 			pkgIdentifier = dismapi.DismPackageName
@@ -192,26 +236,31 @@ func (d *DismImageSession) EnableFeature(opts DismEnableFeatureOpts) error {
 
 	return dismapi.DismEnableFeature(
 		d.session,
-		opts.FeatureName,
-		opts.Identifier,
+		featureName,
+		o.Identifier,
 		pkgIdentifier,
-		opts.LimitAccess,
-		opts.SourcePaths,
-		opts.EnableAll,
-		opts.CancelEvent,
-		opts.Progress,
-		opts.UserData,
+		o.LimitAccess,
+		o.SourcePaths,
+		o.EnableAll,
+		o.CancelEvent,
+		o.Progress,
+		o.UserData,
 	)
 }
 
 // RemoveCapability removes a capability in an image.
-func (d *DismImageSession) RemoveCapability(name string, opts DismProgressOpts) error {
+func (d *DismImageSession) RemoveCapability(name string, opts *DismProgressOpts) error {
+	var o DismProgressOpts
+	if opts != nil {
+		o = *opts
+	}
+
 	return dismapi.DismRemoveCapability(
 		d.session,
 		name,
-		opts.CancelEvent,
-		opts.Progress,
-		opts.UserData,
+		o.CancelEvent,
+		o.Progress,
+		o.UserData,
 	)
 }
 
@@ -224,7 +273,12 @@ func (d *DismImageSession) RemoveDriver(driverPath string) error {
 // RemovePackage removes a package from an image.
 //
 // identifier can be an absolute path to a .cab file or package name.
-func (d *DismImageSession) RemovePackage(identifier string, opts DismProgressOpts) error {
+func (d *DismImageSession) RemovePackage(identifier string, opts *DismProgressOpts) error {
+	var o DismProgressOpts
+	if opts != nil {
+		o = *opts
+	}
+
 	pkgIdentifier := dismapi.DismPackageNone
 	if identifier != "" {
 		if strings.HasSuffix(strings.ToLower(identifier), ".cab") {
@@ -238,44 +292,54 @@ func (d *DismImageSession) RemovePackage(identifier string, opts DismProgressOpt
 		d.session,
 		identifier,
 		pkgIdentifier,
-		opts.CancelEvent,
-		opts.Progress,
-		opts.UserData,
+		o.CancelEvent,
+		o.Progress,
+		o.UserData,
 	)
 }
 
 // RestoreImageHealth repairs an image which has been
 // identified as repairable of CheckImageHealth.
-func (d *DismImageSession) RestoreImageHealth(opts DismRestoreImageHealthOpts) error {
+func (d *DismImageSession) RestoreImageHealth(opts *DismRestoreImageHealthOpts) error {
+	var o DismRestoreImageHealthOpts
+	if opts != nil {
+		o = *opts
+	}
+
 	return dismapi.DismRestoreImageHealth(
 		d.session,
-		opts.SourcePaths,
-		opts.LimitAccess,
-		opts.CancelEvent,
-		opts.Progress,
-		opts.UserData,
+		o.SourcePaths,
+		o.LimitAccess,
+		o.CancelEvent,
+		o.Progress,
+		o.UserData,
 	)
 }
 
 // CommitImage commits changes from mount point to an image.
-func (d *DismImageSession) CommitImage(opts DismCommitOpts) error {
+func (d *DismImageSession) CommitImage(opts *DismCommitOpts) error {
+	var o DismCommitOpts
+	if opts != nil {
+		o = *opts
+	}
+
 	var flags uint32
-	if opts.Append {
+	if o.Append {
 		flags |= dismapi.DISM_COMMIT_APPEND
 	}
-	if opts.GenerateIntegrity {
+	if o.GenerateIntegrity {
 		flags |= dismapi.DISM_COMMIT_GENERATE_INTEGRITY
 	}
-	if opts.SupportEa {
+	if o.SupportEa {
 		flags |= dismapi.DISM_COMMIT_SUPPORT_EA
 	}
 
 	return dismapi.DismCommitImage(
 		d.session,
 		flags,
-		opts.CancelEvent,
-		opts.Progress,
-		opts.UserData,
+		o.CancelEvent,
+		o.Progress,
+		o.UserData,
 	)
 }
 
@@ -324,59 +388,70 @@ func (d *DismImageFile) ImageFilePath() string {
 }
 
 // Mount mounts an image file with imageIndex or with imageName if specified.
-func (d *DismImageFile) Mount(opts DismMountOpts) error {
+func (d *DismImageFile) Mount(mountPath string, imageIndex uint32, opts *DismMountOpts) error {
+	var o DismMountOpts
+	if opts != nil {
+		o = *opts
+	}
+
 	identifier := dismapi.DismImageIndex
-	if opts.ImageName != "" {
+	if o.ImageName != "" {
 		identifier = dismapi.DismImageName
 	}
 
 	var flags uint32 = dismapi.DISM_MOUNT_READWRITE
-	if opts.ReadOnly {
+	if o.ReadOnly {
 		flags = dismapi.DISM_MOUNT_READONLY
 	}
-	if opts.Optimize {
+	if o.Optimize {
 		flags |= dismapi.DISM_MOUNT_OPTIMIZE
 	}
-	if opts.CheckIntegrity {
+	if o.CheckIntegrity {
 		flags |= dismapi.DISM_MOUNT_CHECK_INTEGRITY
 	}
 
-	if err := dismapi.DismMountImage(d.imageFilePath, opts.MountPath, opts.ImageIndex, opts.ImageName,
-		identifier, flags, opts.CancelEvent, opts.Progress, opts.UserData); err != nil {
+	if err := dismapi.DismMountImage(d.imageFilePath, mountPath, imageIndex,
+		o.ImageName, identifier, flags, o.CancelEvent, o.Progress,
+		o.UserData); err != nil {
 		return err
 	}
 
-	d.MountPoints.Add(opts.MountPath)
+	d.MountPoints.Add(mountPath)
 
 	return nil
 }
 
 // Unmount unmounts the specified mount path.
-func (d *DismImageFile) Unmount(opts DismUnmountOpts) error {
-	if !d.MountPoints.ContainsOne(opts.MountPath) {
+func (d *DismImageFile) Unmount(mountPath string, opts *DismUnmountOpts) error {
+	if !d.MountPoints.ContainsOne(mountPath) {
 		return ErrNotMounted
 	}
 
+	var o DismUnmountOpts
+	if opts != nil {
+		o = *opts
+	}
+
 	var flags uint32 = dismapi.DISM_DISCARD_IMAGE
-	if opts.Commit {
+	if o.Commit {
 		flags = dismapi.DISM_COMMIT_IMAGE
-		if opts.Append {
+		if o.Append {
 			flags |= dismapi.DISM_COMMIT_APPEND
 		}
-		if opts.GenerateIntegrity {
+		if o.GenerateIntegrity {
 			flags |= dismapi.DISM_COMMIT_GENERATE_INTEGRITY
 		}
-		if opts.SupportEa {
+		if o.SupportEa {
 			flags |= dismapi.DISM_COMMIT_SUPPORT_EA
 		}
 	}
 
-	if err := dismapi.DismUnmountImage(opts.MountPath, flags, opts.CancelEvent,
-		opts.Progress, opts.UserData); err != nil {
+	if err := dismapi.DismUnmountImage(mountPath, flags, o.CancelEvent,
+		o.Progress, o.UserData); err != nil {
 		return err
 	}
 
-	d.MountPoints.Remove(opts.MountPath)
+	d.MountPoints.Remove(mountPath)
 
 	return nil
 }
@@ -485,15 +560,51 @@ func (w *WimVolumeImage) GetImageInfo() ([]byte, error) {
 }
 
 // Apply applies a volume image in .wim file to specified path.
-//
-// flags: [wimgapi.WIM_FLAG_VERIFY], [wimgapi.WIM_FLAG_INDEX], [wimgapi.WIM_FLAG_NO_APPLY],
-// [wimgapi.WIM_FLAG_FILEINFO], [wimgapi.WIM_FLAG_NO_RP_FIX], [wimgapi.WIM_FLAG_NO_DIRACL],
-// [wimgapi.WIM_FLAG_NO_FILEACL]
-func (w *WimVolumeImage) Apply(applyPath string, flags uint32) error {
+func (w *WimVolumeImage) Apply(applyPath string, opts *WimApplyOpts) error {
 	if !w.wimRef.tempPathSet {
 		if err := w.wimRef.setTempPath(); err != nil {
 			return err
 		}
+	}
+
+	var o WimApplyOpts
+	if opts != nil {
+		o = *opts
+	}
+
+	var flags uint32
+	if o.Verify {
+		flags |= wimgapi.WIM_FLAG_VERIFY
+	}
+	if o.Index {
+		flags |= wimgapi.WIM_FLAG_INDEX
+	}
+	if o.NoApply {
+		flags |= wimgapi.WIM_FLAG_NO_APPLY
+	}
+	if o.NoDirAcl {
+		flags |= wimgapi.WIM_FLAG_NO_DIRACL
+	}
+	if o.NoFileAcl {
+		flags |= wimgapi.WIM_FLAG_NO_FILEACL
+	}
+	if o.NoReparseFix {
+		flags |= wimgapi.WIM_FLAG_NO_RP_FIX
+	}
+	if o.FileInfo {
+		flags |= wimgapi.WIM_FLAG_FILEINFO
+	}
+	if o.ConfirmTrustedFile {
+		flags |= wimgapi.WIM_FLAG_APPLY_CI_EA
+	}
+	if o.WIMBoot {
+		flags |= wimgapi.WIM_FLAG_WIM_BOOT
+	}
+	if o.Compact {
+		flags |= wimgapi.WIM_FLAG_APPLY_COMPACT
+	}
+	if o.SupportEa {
+		flags |= wimgapi.WIM_FLAG_SUPPORT_EA
 	}
 
 	if err := wimgapi.WIMApplyImage(w.Handle, applyPath, flags); err != nil {
@@ -504,9 +615,11 @@ func (w *WimVolumeImage) Apply(applyPath string, flags uint32) error {
 }
 
 // Export transfers a volume image in .wim file to another .wim file.
-//
-// flags: [wimgapi.WIM_EXPORT_ALLOW_DUPLICATES]...
-func (w *WimVolumeImage) Export(wim *WimImageFile, flags uint32) error {
+func (w *WimVolumeImage) Export(wim *WimImageFile, opts *WimExportOpts) error {
+	if wim == nil {
+		return errors.New("destination file is nil")
+	}
+
 	if !w.wimRef.tempPathSet {
 		if err := w.wimRef.setTempPath(); err != nil {
 			return err
@@ -518,6 +631,28 @@ func (w *WimVolumeImage) Export(wim *WimImageFile, flags uint32) error {
 		}
 	}
 
+	var o WimExportOpts
+	if opts != nil {
+		o = *opts
+	}
+
+	var flags uint32
+	if o.AllowDuplicate {
+		flags |= wimgapi.WIM_EXPORT_ALLOW_DUPLICATES
+	}
+	if o.OnlyResources {
+		flags |= wimgapi.WIM_EXPORT_ONLY_RESOURCES
+	}
+	if o.OnlyMetadata {
+		flags |= wimgapi.WIM_EXPORT_ONLY_METADATA
+	}
+	if o.VerifySource {
+		flags |= wimgapi.WIM_EXPORT_VERIFY_SOURCE
+	}
+	if o.VerifyDestination {
+		flags |= wimgapi.WIM_EXPORT_VERIFY_DESTINATION
+	}
+
 	if err := wimgapi.WIMExportImage(w.Handle, wim.Handle, flags); err != nil {
 		return err
 	}
@@ -526,11 +661,31 @@ func (w *WimVolumeImage) Export(wim *WimImageFile, flags uint32) error {
 }
 
 // Mount mounts a volume image in .wim file to mountPath.
-//
-// flags: [wimgapi.WIM_FLAG_MOUNT_READONLY], [wimgapi.WIM_FLAG_VERIFY], [wimgapi.WIM_FLAG_NO_RP_FIX], [wimgapi.WIM_FLAG_NO_DIRACL], [wimgapi.WIM_FLAG_NO_FILEACL]
-func (w *WimVolumeImage) Mount(mountPath string, flags uint32) error {
+func (w *WimVolumeImage) Mount(mountPath string, opts *WimImageMountOpts) error {
 	if w.MountPath != "" {
 		return ErrAlreadyMounted
+	}
+
+	var o WimImageMountOpts
+	if opts != nil {
+		o = *opts
+	}
+
+	var flags uint32
+	if o.ReadOnly {
+		flags |= wimgapi.WIM_FLAG_MOUNT_READONLY
+	}
+	if o.Verify {
+		flags |= wimgapi.WIM_FLAG_VERIFY
+	}
+	if o.NoReparseFix {
+		flags |= wimgapi.WIM_FLAG_NO_RP_FIX
+	}
+	if o.NoDirAcl {
+		flags |= wimgapi.WIM_FLAG_NO_DIRACL
+	}
+	if o.NoFileAcl {
+		flags |= wimgapi.WIM_FLAG_NO_FILEACL
 	}
 
 	if err := wimgapi.WIMMountImageHandle(w.Handle, mountPath, flags); err != nil {
@@ -582,27 +737,50 @@ type WimImageFile struct {
 	// handles from [wimgapi.WIMLoadImage] and [wimgapi.WIMCaptureImage],
 	// mapped with image index
 	ImageHandles *xsync.MapOf[uint32, *WimVolumeImage]
-
 	// path of .wim file
 	imageFilePath string
 	// temporary path for capture and apply
 	tempPath string
 	// image count in .wim file
 	imageCount uint32
-	// is temporary path is set or created?
+	// is temporary path set or created?
 	tempPathSet, tempCreated bool
+	// this .wim file is newly created
+	isCreated bool
 }
 
-// NewWIMImageFile opens or creates image file, if tempPath is empty,
+// NewWIMImageFile opens or creates image file, if opts.TempPath is empty,
 // temporary directory will be created with random name if needed.
-//
-// access: [wimgapi.WIM_GENERIC_READ]... /
-// createmode: [wimgapi.WIM_OPEN_EXISTING]... /
-// flags: [wimgapi.WIM_FLAG_VERIFY]... /
-func NewWIMImageFile(imageFilePath string, access uint32, createMode uint32, flags uint32,
-	compressionType wimgapi.WimCompressionType, tempPath string) (*WimImageFile, error) {
-	wimHandle, _, err := wimgapi.WIMCreateFile(imageFilePath, access, createMode,
-		flags, compressionType, false)
+func NewWIMImageFile(imageFilePath string, opts *WimCreateFileOpts) (*WimImageFile, error) {
+	var o WimCreateFileOpts
+	if opts != nil {
+		o = *opts
+	}
+
+	var access, createMode, flags uint32
+	if !o.NoRead {
+		access |= wimgapi.WIM_GENERIC_READ
+	}
+	if !o.NoWrite {
+		access |= wimgapi.WIM_GENERIC_WRITE
+	}
+	if !o.NoMount {
+		access |= wimgapi.WIM_GENERIC_MOUNT
+	}
+
+	switch o.CreateMode {
+	case OpenExisting:
+		createMode = wimgapi.WIM_OPEN_EXISTING
+	case OpenOrCreate:
+		createMode = wimgapi.WIM_OPEN_ALWAYS
+	case CreateIfNotExist:
+		createMode = wimgapi.WIM_CREATE_NEW
+	case AlwaysCreate:
+		createMode = wimgapi.WIM_CREATE_ALWAYS
+	}
+
+	wimHandle, created, err := wimgapi.WIMCreateFile(imageFilePath, access, createMode,
+		flags, wimgapi.WimCompressionType(o.Compression), true)
 	if err != nil {
 		return nil, err
 	}
@@ -612,7 +790,8 @@ func NewWIMImageFile(imageFilePath string, access uint32, createMode uint32, fla
 		ImageHandles:  xsync.NewMapOf[uint32, *WimVolumeImage](),
 		imageFilePath: imageFilePath,
 		imageCount:    wimgapi.WIMGetImageCount(wimHandle),
-		tempPath:      tempPath,
+		tempPath:      o.TempPath,
+		isCreated:     created,
 	}, nil
 }
 
@@ -633,6 +812,11 @@ func (w *WimImageFile) setTempPath() error {
 	return nil
 }
 
+// IsCreated returns if this .wim file is a created one.
+func (w *WimImageFile) IsCreated() bool {
+	return w.isCreated
+}
+
 // GetImageCount updates and returns the number of
 // volume images stored in .wim file.
 func (w *WimImageFile) GetImageCount() uint32 {
@@ -648,11 +832,36 @@ func (w *WimImageFile) GetImageFilePath() string {
 
 // Capture captures a directory path and stores it in an .wim
 // file which is added as a volume image and returns it.
-func (w *WimImageFile) Capture(capturePath string, flags uint32) (*WimVolumeImage, error) {
+func (w *WimImageFile) Capture(capturePath string, opts *WimCaptureOpts) (*WimVolumeImage, error) {
 	if !w.tempPathSet {
 		if err := w.setTempPath(); err != nil {
 			return nil, err
 		}
+	}
+
+	var o WimCaptureOpts
+	if opts != nil {
+		o = *opts
+	}
+
+	var flags uint32
+	if o.Verify {
+		flags |= wimgapi.WIM_FLAG_VERIFY
+	}
+	if o.NoReparseFix {
+		flags |= wimgapi.WIM_FLAG_NO_RP_FIX
+	}
+	if o.NoDirAcl {
+		flags |= wimgapi.WIM_FLAG_NO_DIRACL
+	}
+	if o.NoFileAcl {
+		flags |= wimgapi.WIM_FLAG_NO_FILEACL
+	}
+	if o.WIMBoot {
+		flags |= wimgapi.WIM_FLAG_WIM_BOOT
+	}
+	if o.SupportEa {
+		flags |= wimgapi.WIM_FLAG_SUPPORT_EA
 	}
 
 	volHnd, err := wimgapi.WIMCaptureImage(w.Handle, capturePath, flags)
@@ -765,9 +974,11 @@ func UnmountWimImage(mountPath, imageFilePath string, imageIndex uint32, commitC
 }
 
 // RemountWimImage remounts an image mount to mountPath, it maps
-// contents if mounted image volume to the directory. The value is
-// of flags is reserved and always zero.
-func RemountWimImage(mountPath string, flags uint32) error {
+// contents of mounted image volume to the directory. The opts
+// is currently unused.
+func RemountWimImage(mountPath string, opts *WimRemountOpts) error {
+	var flags uint32
+
 	if err := wimgapi.WIMRemountImage(mountPath, flags); err != nil {
 		return err
 	}

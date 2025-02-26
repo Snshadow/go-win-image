@@ -64,12 +64,12 @@ func (f *Filetime) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	if err != nil {
 		return err
 	}
-	f.HighPart = uint32(tempHigh)
+	f.HighPart = tempHigh
 	_, err = fmt.Sscanf(ff.LowPart, "0x%08X", &tempLow)
 	if err != nil {
 		return err
 	}
-	f.LowPart = uint32(tempLow)
+	f.LowPart = tempLow
 
 	return nil
 }
