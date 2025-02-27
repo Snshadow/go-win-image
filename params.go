@@ -188,7 +188,7 @@ type WimCreateMode uint32
 const (
 	// open only if the file exists
 	OpenExisting WimCreateMode = iota
-	// open the file, creating it if it does not exist
+	// open the file, create it first if it does not exist
 	OpenOrCreate
 	// create only if the file does not exist
 	CreateIfNotExist

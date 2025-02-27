@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unsafe"
 
 	"golang.org/x/sys/windows"
 
@@ -812,7 +813,7 @@ func (w *WimImageFile) setTempPath() error {
 	return nil
 }
 
-// IsCreated returns if this .wim file is a created one.
+// IsCreated returns if this .wim file is newly created.
 func (w *WimImageFile) IsCreated() bool {
 	return w.isCreated
 }
@@ -915,10 +916,24 @@ func (w *WimImageFile) LoadImage(imageIndex uint32) (*WimVolumeImage, error) {
 	return imgHandle, err
 }
 
+// RegisterMessageCallback registers callback to be used for imaging operation.
+func (w *WimImageFile) RegisterMessageCallback(callback uintptr, userData unsafe.Pointer) error {
+	_, err := wimgapi.WIMRegisterMessageCallback(w.Handle, callback, userData)
+
+	return err
+}
+
+// UnregisterMessageCallback unregisters callback previously registered
+// with RegisterMessageCallback, using 0 unregisters all callbacks.
+func (w *WimImageFile) UnregisterMessageCallback(callback uintptr) error {
+	return wimgapi.WIMUnregisterMessageCallback(w.Handle, callback)
+}
+
 // Close cleans up all mount points and volume image handles, note that
 // this will discard changes in mount points created with Mount().
 func (w *WimImageFile) Close() error {
-	var err error
+	// unregister all callback functions
+	err := wimgapi.WIMUnregisterMessageCallback(w.Handle, 0)
 
 	w.ImageHandles.Range(func(index uint32, imgHandle *WimVolumeImage) bool {
 		if imgHandle.MountPath != "" {
