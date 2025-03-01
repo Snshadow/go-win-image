@@ -154,3 +154,45 @@ func WimXmlToBytes(info *Wim) ([]byte, error) {
 
 	return infoXml, nil
 }
+
+func BytesToImageXml(buf []byte) (*Image, error) {
+	if len(buf) < 2 {
+		return nil, errors.New("buffer size is too small")
+	}
+
+	// skip BOM(0xff, 0xfe)
+	if buf[0] == 0xff && buf[1] == 0xfe {
+		buf = buf[2:]
+	}
+
+	xmlReader := bytes.NewReader(buf)
+	xmlData := make([]uint16, len(buf)/2)
+	binary.Read(xmlReader, binary.LittleEndian, xmlData)
+	decoded := utf16.Decode(xmlData)
+
+	imageInfo := &Image{}
+
+	err := xml.Unmarshal([]byte(string(decoded)), imageInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	return imageInfo, nil
+}
+
+func ImageXmlToBytes(info *Image) ([]byte, error) {
+	infoXml, err := xml.Marshal(info)
+	if err != nil {
+		return nil, err
+	}
+
+	encoded := utf16.Encode([]rune(string(infoXml)))
+
+	var buf bytes.Buffer
+	binary.Write(&buf, binary.LittleEndian, encoded)
+
+	// add BOM(UTF-16 LE) at the front
+	infoXml = append([]byte{0xff, 0xfe}, buf.Bytes()...)
+
+	return infoXml, nil
+}

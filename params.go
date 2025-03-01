@@ -43,6 +43,8 @@ type DismMountOpts struct {
 
 // DismUnmountOpts contains options used for unmounting DISM image.
 type DismUnmountOpts struct {
+	// unmount even if its not mounted from [DismImageFile]
+	Force bool
 	// Append, GenerateIntegrity or SupportEa are ignored if
 	// Commit is false
 	Commit, Append, GenerateIntegrity, SupportEa bool

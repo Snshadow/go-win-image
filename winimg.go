@@ -361,9 +361,9 @@ type DismImageFile struct {
 	// path of .wim or .vhd(x) file
 	imageFilePath string
 	// mounted paths used in [dismapi.DismMountImage]
-	MountPoints mapset.Set[string]
+	mountPoints mapset.Set[string]
 	// DismSessions from [dismapi.DismOpenSession], mapped with mounted paths
-	Sessions mapset.Set[*DismImageSession]
+	sessions mapset.Set[*DismImageSession]
 }
 
 // NewDismImageFile creates structure for using DISM API, it
@@ -375,8 +375,8 @@ func NewDismImageFile(imageFilePath string) (*DismImageFile, error) {
 
 	dismImg := &DismImageFile{
 		imageFilePath: imageFilePath,
-		MountPoints:   mapset.NewSet[string](),
-		Sessions:      mapset.NewSet[*DismImageSession](),
+		mountPoints:   mapset.NewSet[string](),
+		sessions:      mapset.NewSet[*DismImageSession](),
 	}
 
 	curDismImg.Add(dismImg)
@@ -384,8 +384,19 @@ func NewDismImageFile(imageFilePath string) (*DismImageFile, error) {
 	return dismImg, nil
 }
 
+// ImageFilePath returns a path of .wim of .vhd file.
 func (d *DismImageFile) ImageFilePath() string {
 	return d.imageFilePath
+}
+
+// GetMountPoints returns currently mounted paths.
+func (d *DismImageFile) GetMountPoints() []string {
+	return d.mountPoints.ToSlice()
+}
+
+// GetSessions returns currently opened sessions from this image.
+func (d *DismImageFile) GetSessions() []*DismImageSession {
+	return d.sessions.ToSlice()
 }
 
 // Mount mounts an image file with imageIndex or with imageName if specified.
@@ -417,14 +428,14 @@ func (d *DismImageFile) Mount(mountPath string, imageIndex uint32, opts *DismMou
 		return err
 	}
 
-	d.MountPoints.Add(mountPath)
+	d.mountPoints.Add(mountPath)
 
 	return nil
 }
 
 // Unmount unmounts the specified mount path.
 func (d *DismImageFile) Unmount(mountPath string, opts *DismUnmountOpts) error {
-	if !d.MountPoints.ContainsOne(mountPath) {
+	if !opts.Force && !d.mountPoints.ContainsOne(mountPath) {
 		return ErrNotMounted
 	}
 
@@ -452,15 +463,15 @@ func (d *DismImageFile) Unmount(mountPath string, opts *DismUnmountOpts) error {
 		return err
 	}
 
-	d.MountPoints.Remove(mountPath)
+	d.mountPoints.Remove(mountPath)
 
 	return nil
 }
 
 // OpenSession creates DismImageSession from a mount path, if windowsPath or
-// systemDrive are empty, default value will be used.
+// systemDrive is empty, default value will be used.
 func (d *DismImageFile) OpenSession(mountPath, windowsPath, systemDrive string) (*DismImageSession, error) {
-	if !d.MountPoints.ContainsOne(mountPath) {
+	if !d.mountPoints.ContainsOne(mountPath) {
 		return nil, ErrNotMounted
 	}
 
@@ -472,10 +483,10 @@ func (d *DismImageFile) OpenSession(mountPath, windowsPath, systemDrive string) 
 	newSession := &DismImageSession{
 		session:   ses,
 		mountPath: mountPath,
-		sesMapRef: d.Sessions,
+		sesMapRef: d.sessions,
 	}
 
-	d.Sessions.Add(newSession)
+	d.sessions.Add(newSession)
 
 	return newSession, nil
 }
@@ -490,19 +501,19 @@ func (d *DismImageFile) GetImageInfo() ([]dismapi.GoDismImageInfo, error) {
 func (d *DismImageFile) Close() error {
 	var err error
 
-	for session := range d.Sessions.Iter() {
+	for session := range d.sessions.Iter() {
 		closeErr := session.Close()
 		if closeErr != nil {
 			err = errors.Join(err, closeErr)
 		}
 	}
 
-	for mntPath := range d.MountPoints.Iter() {
+	for mntPath := range d.mountPoints.Iter() {
 		unmountErr := dismapi.DismUnmountImage(mntPath, dismapi.DISM_DISCARD_IMAGE, 0, 0, nil)
 		if unmountErr != nil {
 			err = errors.Join(err, unmountErr)
 		} else {
-			d.MountPoints.Remove(mntPath)
+			d.mountPoints.Remove(mntPath)
 		}
 	}
 
@@ -547,17 +558,32 @@ func UnregisterWimLog(logFile string) error {
 // WimVolumeImage stores handle and mount path for
 // a volume image in .wim file.
 type WimVolumeImage struct {
-	Handle windows.Handle
+	handle windows.Handle
 	// if not empty, the image handle is mounted
-	MountPath string
+	mountPath string
 
 	imageIndex uint32
 	wimRef     *WimImageFile
 }
 
-// GetImageInfo returns xml info of a image in bytes.
+// GetHandle returns handle of a volume image.
+func (w *WimVolumeImage) GetHandle() windows.Handle {
+	return w.handle
+}
+
+// GetMountPath returns mounted path of a volume image.
+func (w *WimVolumeImage) GetMountPath() string {
+	return w.mountPath
+}
+
+// GetImageInfo returns xml info of a volume image in bytes.
 func (w *WimVolumeImage) GetImageInfo() ([]byte, error) {
-	return wimgapi.WIMGetImageInformation(w.Handle)
+	return wimgapi.WIMGetImageInformation(w.handle)
+}
+
+// SetImageInfo sets xml info of a image with bytes.
+func (w *WimVolumeImage) SetImageInfo(buf []byte) error {
+	return wimgapi.WIMSetImageInformation(w.handle, buf)
 }
 
 // Apply applies a volume image in .wim file to specified path.
@@ -608,7 +634,7 @@ func (w *WimVolumeImage) Apply(applyPath string, opts *WimApplyOpts) error {
 		flags |= wimgapi.WIM_FLAG_SUPPORT_EA
 	}
 
-	if err := wimgapi.WIMApplyImage(w.Handle, applyPath, flags); err != nil {
+	if err := wimgapi.WIMApplyImage(w.handle, applyPath, flags); err != nil {
 		return err
 	}
 
@@ -654,7 +680,7 @@ func (w *WimVolumeImage) Export(wim *WimImageFile, opts *WimExportOpts) error {
 		flags |= wimgapi.WIM_EXPORT_VERIFY_DESTINATION
 	}
 
-	if err := wimgapi.WIMExportImage(w.Handle, wim.Handle, flags); err != nil {
+	if err := wimgapi.WIMExportImage(w.handle, wim.handle, flags); err != nil {
 		return err
 	}
 
@@ -663,7 +689,7 @@ func (w *WimVolumeImage) Export(wim *WimImageFile, opts *WimExportOpts) error {
 
 // Mount mounts a volume image in .wim file to mountPath.
 func (w *WimVolumeImage) Mount(mountPath string, opts *WimImageMountOpts) error {
-	if w.MountPath != "" {
+	if w.mountPath != "" {
 		return ErrAlreadyMounted
 	}
 
@@ -689,26 +715,26 @@ func (w *WimVolumeImage) Mount(mountPath string, opts *WimImageMountOpts) error 
 		flags |= wimgapi.WIM_FLAG_NO_FILEACL
 	}
 
-	if err := wimgapi.WIMMountImageHandle(w.Handle, mountPath, flags); err != nil {
+	if err := wimgapi.WIMMountImageHandle(w.handle, mountPath, flags); err != nil {
 		return err
 	}
 
-	w.MountPath = mountPath
+	w.mountPath = mountPath
 
 	return nil
 }
 
 // Unmount unmounts a volume image in .wim file from mounted path.
 func (w *WimVolumeImage) Unmount() error {
-	if w.MountPath == "" {
+	if w.mountPath == "" {
 		return ErrNotMounted
 	}
 
-	if err := wimgapi.WIMUnmountImageHandle(w.Handle, 0); err != nil {
+	if err := wimgapi.WIMUnmountImageHandle(w.handle, 0); err != nil {
 		return err
 	}
 
-	w.MountPath = ""
+	w.mountPath = ""
 
 	return nil
 }
@@ -717,15 +743,15 @@ func (w *WimVolumeImage) Unmount() error {
 func (w *WimVolumeImage) Close() error {
 	var err error
 
-	if w.MountPath != "" {
+	if w.mountPath != "" {
 		err = errors.Join(err, w.Unmount())
 	}
 
-	closeErr := wimgapi.WIMCloseHandle(w.Handle)
+	closeErr := wimgapi.WIMCloseHandle(w.handle)
 	if closeErr != nil {
 		err = errors.Join(err, closeErr)
 	} else {
-		w.wimRef.ImageHandles.Delete(w.imageIndex)
+		w.wimRef.imageHandles.Delete(w.imageIndex)
 	}
 
 	return err
@@ -734,10 +760,10 @@ func (w *WimVolumeImage) Close() error {
 // WimImageFile contains handle for .wim file and associated mount points.
 type WimImageFile struct {
 	// handle from [wimgapi.WIMCreateFile] with .wim file
-	Handle windows.Handle
+	handle windows.Handle
 	// handles from [wimgapi.WIMLoadImage] and [wimgapi.WIMCaptureImage],
 	// mapped with image index
-	ImageHandles *xsync.MapOf[uint32, *WimVolumeImage]
+	imageHandles *xsync.MapOf[uint32, *WimVolumeImage]
 	// path of .wim file
 	imageFilePath string
 	// temporary path for capture and apply
@@ -787,8 +813,8 @@ func NewWIMImageFile(imageFilePath string, opts *WimCreateFileOpts) (*WimImageFi
 	}
 
 	return &WimImageFile{
-		Handle:        wimHandle,
-		ImageHandles:  xsync.NewMapOf[uint32, *WimVolumeImage](),
+		handle:        wimHandle,
+		imageHandles:  xsync.NewMapOf[uint32, *WimVolumeImage](),
 		imageFilePath: imageFilePath,
 		imageCount:    wimgapi.WIMGetImageCount(wimHandle),
 		tempPath:      o.TempPath,
@@ -803,7 +829,7 @@ func (w *WimImageFile) setTempPath() error {
 		w.tempCreated = true
 	}
 
-	err := wimgapi.WIMSetTemporaryPath(w.Handle, w.tempPath)
+	err := wimgapi.WIMSetTemporaryPath(w.handle, w.tempPath)
 	if err != nil {
 		return err
 	}
@@ -818,10 +844,15 @@ func (w *WimImageFile) IsCreated() bool {
 	return w.isCreated
 }
 
+// GetHandle returns handle of an opened .wim file.
+func (w *WimImageFile) GetHandle() windows.Handle {
+	return w.handle
+}
+
 // GetImageCount updates and returns the number of
 // volume images stored in .wim file.
 func (w *WimImageFile) GetImageCount() uint32 {
-	w.imageCount = wimgapi.WIMGetImageCount(w.Handle)
+	w.imageCount = wimgapi.WIMGetImageCount(w.handle)
 
 	return w.imageCount
 }
@@ -865,7 +896,7 @@ func (w *WimImageFile) Capture(capturePath string, opts *WimCaptureOpts) (*WimVo
 		flags |= wimgapi.WIM_FLAG_SUPPORT_EA
 	}
 
-	volHnd, err := wimgapi.WIMCaptureImage(w.Handle, capturePath, flags)
+	volHnd, err := wimgapi.WIMCaptureImage(w.handle, capturePath, flags)
 	if err != nil {
 		return nil, err
 	}
@@ -873,23 +904,23 @@ func (w *WimImageFile) Capture(capturePath string, opts *WimCaptureOpts) (*WimVo
 	w.imageCount++
 
 	newVolume := &WimVolumeImage{
-		Handle:     volHnd,
+		handle:     volHnd,
 		imageIndex: w.imageCount,
 		wimRef:     w,
 	}
 
-	w.ImageHandles.Store(w.imageCount, newVolume)
+	w.imageHandles.Store(w.imageCount, newVolume)
 
 	return newVolume, nil
 }
 
-// GetFileInfo returns xml info of .wim file in bytes.
-func (w *WimImageFile) GetFileInfo() ([]byte, error) {
-	return wimgapi.WIMGetImageInformation(w.Handle)
+// GetImageInfo returns xml info of .wim file in bytes.
+func (w *WimImageFile) GetImageInfo() ([]byte, error) {
+	return wimgapi.WIMGetImageInformation(w.handle)
 }
 
 func (w *WimImageFile) GetAttributes() (wimgapi.GoWimInfo, error) {
-	return wimgapi.WIMGetAttributes(w.Handle)
+	return wimgapi.WIMGetAttributes(w.handle)
 }
 
 // LoadImage loads volume image from .wim file with image index.
@@ -900,25 +931,31 @@ func (w *WimImageFile) LoadImage(imageIndex uint32) (*WimVolumeImage, error) {
 		}
 	}
 
-	hnd, err := wimgapi.WIMLoadImage(w.Handle, imageIndex)
+	hnd, err := wimgapi.WIMLoadImage(w.handle, imageIndex)
 	if err != nil {
 		return nil, err
 	}
 
 	imgHandle := &WimVolumeImage{
-		Handle:     hnd,
+		handle:     hnd,
 		imageIndex: imageIndex,
 		wimRef:     w,
 	}
 
-	w.ImageHandles.Store(imageIndex, imgHandle)
+	w.imageHandles.Store(imageIndex, imgHandle)
 
 	return imgHandle, err
 }
 
+// SetImageInfo sets information of a .wim file with xml info
+// as bytes.
+func (w *WimImageFile) SetImageInfo(buf []byte) error {
+	return wimgapi.WIMSetImageInformation(w.handle, buf)
+}
+
 // RegisterMessageCallback registers callback to be used for imaging operation.
 func (w *WimImageFile) RegisterMessageCallback(callback uintptr, userData unsafe.Pointer) error {
-	_, err := wimgapi.WIMRegisterMessageCallback(w.Handle, callback, userData)
+	_, err := wimgapi.WIMRegisterMessageCallback(w.handle, callback, userData)
 
 	return err
 }
@@ -926,22 +963,22 @@ func (w *WimImageFile) RegisterMessageCallback(callback uintptr, userData unsafe
 // UnregisterMessageCallback unregisters callback previously registered
 // with RegisterMessageCallback, using 0 unregisters all callbacks.
 func (w *WimImageFile) UnregisterMessageCallback(callback uintptr) error {
-	return wimgapi.WIMUnregisterMessageCallback(w.Handle, callback)
+	return wimgapi.WIMUnregisterMessageCallback(w.handle, callback)
 }
 
 // Close cleans up all mount points and volume image handles, note that
 // this will discard changes in mount points created with Mount().
 func (w *WimImageFile) Close() error {
 	// unregister all callback functions
-	err := wimgapi.WIMUnregisterMessageCallback(w.Handle, 0)
+	err := wimgapi.WIMUnregisterMessageCallback(w.handle, 0)
 
-	w.ImageHandles.Range(func(index uint32, imgHandle *WimVolumeImage) bool {
-		if imgHandle.MountPath != "" {
-			unmountErr := wimgapi.WIMUnmountImageHandle(imgHandle.Handle, 0)
+	w.imageHandles.Range(func(index uint32, imgHandle *WimVolumeImage) bool {
+		if imgHandle.mountPath != "" {
+			unmountErr := wimgapi.WIMUnmountImageHandle(imgHandle.handle, 0)
 			if unmountErr != nil {
 				err = errors.Join(err, unmountErr)
 			} else {
-				imgHandle.MountPath = ""
+				imgHandle.mountPath = ""
 			}
 		}
 
@@ -953,8 +990,8 @@ func (w *WimImageFile) Close() error {
 		return true
 	})
 
-	if w.Handle != 0 {
-		err = errors.Join(err, wimgapi.WIMCloseHandle(w.Handle))
+	if w.handle != 0 {
+		err = errors.Join(err, wimgapi.WIMCloseHandle(w.handle))
 	}
 
 	// remove temporary directory if it was created
